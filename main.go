@@ -1,15 +1,15 @@
+
+
+
+
+
 package main
 
 import (
-	//	"context"
-	//	"fmt"
 	"os"
-	//"os/signal"
-	//	"syscall"
-	//
-
 	"context"
 	"fmt"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal"
@@ -17,10 +17,14 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
-
+	"go.mau.fi/whatsmeow/types"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	waProto "go.mau.fi/whatsmeow/binary/proto"
+	"google.golang.org/protobuf/proto"
 )
+
+var log waLog.Logger
 
 func WAConnect() (*whatsmeow.Client, error) {
 	container, err := sqlstore.New("sqlite3", "file:wapp.db?_foreign_keys=on", waLog.Noop)
@@ -54,17 +58,37 @@ func WAConnect() (*whatsmeow.Client, error) {
 	return client, nil
 }
 
+func parseJID(arg string) (types.JID, bool) {
+	if arg[0] == '+' {
+		arg = arg[1:]
+	}
+	if !strings.ContainsRune(arg, '@') {
+		return types.NewJID(arg, types.DefaultUserServer), true
+	} else {
+		recipient, err := types.ParseJID(arg)
+		if err != nil {
+			log.Errorf("Invalid JID %s: %v", arg, err)
+			return recipient, false
+		} else if recipient.User == "" {
+			log.Errorf("Invalid JID %s: no server specified", arg)
+			return recipient, false
+		}
+		return recipient, true
+	}
+}
+
 func main() {
+	jid := "+916009341754@s.whatsapp.net"
+	// putting my test number for now
+	recipient, ok := parseJID(jid)
+
+	if ok {
+		fmt.Println("Ok")
+	}
 	cli, err := WAConnect()
 	if err != nil {
 		fmt.Println(err)
 		return
-	}
-	var conn_status string
-	if cli.IsConnected() {
-		conn_status = "connected"
-	} else {
-		conn_status = "hehe"
 	}
 
 	groups, err := cli.GetJoinedGroups()
@@ -73,32 +97,41 @@ func main() {
 	// Declaring the main application
 	app := tview.NewApplication()
 
-	message := tview.NewTextView()
+	// Messages container
+	box := tview.NewTable().SetSelectable(true, false)
+	box.SetBorder(true).SetTitle("Messages")
 
-	// Root
-	box := tview.NewFlex().SetDirection(tview.FlexRow)
-	box.SetBorder(true).SetTitle("Muffin")
+	// Users
+	usr_row := 1
+	left := tview.NewTable().SetSelectable(true, false)
+	left.GetMouseCapture()
+	left.SetBorder(true).SetTitle("Users")
+	left.SetCell(0, 0, tview.NewTableCell("Connected"))
+	for k, v := range users {
+		left.SetCell(usr_row, 0, tview.NewTableCell(v.FullName))
+		left.SetCell(usr_row, 1, tview.NewTableCell(k.User))
+		usr_row++
+	}
+	for i := 0; i < len(groups); i++ {
+		left.SetCell(usr_row, 0, tview.NewTableCell(groups[i].Name))
+		usr_row++
+	}
 
 	// Input field
 	text := tview.NewInputField().SetLabelWidth(0)
 	text.SetBorder(true)
 	text.SetFieldBackgroundColor(tview.Styles.PrimitiveBackgroundColor)
-	text.SetDoneFunc(func(key tcell.Key) {
-		box.AddItem(tview.NewTextView().SetText(text.GetText()), 1, 1, false)
-		text.SetText("")
+	text.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Rune() == rune(tcell.KeyEnter) {
+			msg := text.GetText()
+			text.SetText("")
+			cli.SendMessage(context.Background()	, recipient, "", &waProto.Message{Conversation: proto.String(msg)})
+		} else if event.Rune() == rune(tcell.KeyTab) {
+			app.SetFocus(left)
+		}
+		return event
 	})
 
-	// Users
-	left := tview.NewFlex().SetDirection(tview.FlexRow)
-	left.SetBorder(true).SetTitle("Users")
-	left.AddItem(message.SetText(conn_status), 1, 1, false)
-	for k, v := range users {
-		left.AddItem(tview.NewTextView().SetText(v.FullName), 1, 1, false)
-		fmt.Println(k, v)
-	}
-	for i := 0; i < len(groups); i++ {
-		left.AddItem(tview.NewTextView().SetText(groups[i].Name), 1, 1, false)
-	}
 
 	// Messages
 	right := tview.NewFlex().SetDirection(tview.FlexRow)
