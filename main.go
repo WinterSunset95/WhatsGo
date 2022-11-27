@@ -19,29 +19,38 @@ import (
 	//	waLog "go.mau.fi/whatsmeow/util/log"
 	"fmt"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 )
-
-// golang declare an array
-// https://www.geeksforgeeks.org/golang-declare-an-array/
 
 func main() {
 	array := [2]string{"Naute", "me"}
 	fmt.Println(array)
 
+	// Declaring the main application
 	app := tview.NewApplication()
 
-	textBox := tview.NewButton(array[0])
-
-	box := tview.NewTextView()
+	// Root
+	box := tview.NewFlex().SetDirection(tview.FlexRow)
 	box.SetBorder(true).SetTitle("Muffin")
 
-	text := tview.NewTextArea().SetPlaceholder("Enter text here.")
+	// Input field
+	text := tview.NewInputField().SetLabelWidth(0)
 	text.SetBorder(true)
+	text.SetFieldBackgroundColor(tview.Styles.PrimitiveBackgroundColor)
+	text.SetDoneFunc(func(key tcell.Key) {
+		box.AddItem(tview.NewTextView().SetText(text.GetText()), 0, 1, false)
+		text.SetText("")
+	})
 
-	left := tview.NewFlex()
-	left.AddItem(textBox, 0, 1, false)
+	// Users
+	left := tview.NewFlex().SetDirection(tview.FlexRow)
 	left.SetBorder(true).SetTitle("Users")
+	for i := 0; i < len(array); i++ {
+		left.AddItem(tview.NewTextView().SetText(array[i]), 0, 1, false)
+	}
+
+	// Messages
 	right := tview.NewFlex().SetDirection(tview.FlexRow)
 	right.AddItem(box, 0, 15, false)
 	right.AddItem(text, 0, 1, true)
