@@ -67,13 +67,13 @@ func main() {
 		conn_status = "hehe"
 	}
 
-	array := [2]string{"Naute", "me"}
+	groups, err := cli.GetJoinedGroups()
+	users, err := cli.Store.Contacts.GetAllContacts()
 
 	// Declaring the main application
 	app := tview.NewApplication()
 
 	message := tview.NewTextView()
-	message.SetText(conn_status)
 
 	// Root
 	box := tview.NewFlex().SetDirection(tview.FlexRow)
@@ -84,16 +84,20 @@ func main() {
 	text.SetBorder(true)
 	text.SetFieldBackgroundColor(tview.Styles.PrimitiveBackgroundColor)
 	text.SetDoneFunc(func(key tcell.Key) {
-		box.AddItem(tview.NewTextView().SetText(text.GetText()), 0, 1, false)
+		box.AddItem(tview.NewTextView().SetText(text.GetText()), 1, 1, false)
 		text.SetText("")
 	})
 
 	// Users
 	left := tview.NewFlex().SetDirection(tview.FlexRow)
 	left.SetBorder(true).SetTitle("Users")
-	left.AddItem(message, 0, 1, false)
-	for i := 0; i < len(array); i++ {
-		left.AddItem(tview.NewTextView().SetText(array[i]), 0, 1, false)
+	left.AddItem(message.SetText(conn_status), 1, 1, false)
+	for k, v := range users {
+		left.AddItem(tview.NewTextView().SetText(v.FullName), 1, 1, false)
+		fmt.Println(k, v)
+	}
+	for i := 0; i < len(groups); i++ {
+		left.AddItem(tview.NewTextView().SetText(groups[i].Name), 1, 1, false)
 	}
 
 	// Messages
