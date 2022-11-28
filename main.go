@@ -83,7 +83,7 @@ func main() {
 	// map holding the JID with an array of messages
 	var database = make(map[types.JID][]string)
 	// map holding the JID with the username
-	var name_map = make(map[types.JID]string)
+	var name_map = make(map[types.JID]types.ContactInfo)
 
 	var recipient types.JID
 
@@ -103,10 +103,9 @@ func main() {
 		db_check, d_ok := database[recipient]
 		name_check, n_ok := name_map[recipient]
 
-		if !d_ok && !n_ok {
+		if !d_ok && !n_ok && db_check == nil && name_check.Found == false {
 			database[recipient] = []string{}
-			name_map[recipient] = "User"
-			fmt.Println(db_check, name_check)
+			name_map[recipient], err = cli.Store.Contacts.GetContact(recipient)
 		}
 	}
 
@@ -131,8 +130,8 @@ func main() {
 	for k, v := range users {
 		if v.PushName != "" {
 			left.SetCell(usr_row, 0, tview.NewTableCell(v.PushName))
-			left.SetCell(usr_row, 1, tview.NewTableCell(k.User))
-			left.SetCell(usr_row, 2, tview.NewTableCell(k.String()))
+			left.SetCell(usr_row, 3, tview.NewTableCell(k.User))
+			left.SetCell(usr_row, 4, tview.NewTableCell(k.String()))
 			usr_row++
 		}
 	}
@@ -161,7 +160,7 @@ func main() {
 			case *events.Message:
 				if evt.Info.Sender == recipient {
 					global := evt.Message.GetConversation()
-					database[recipient] = append(database[recipient], name_map[recipient] + ": " + global)
+					database[recipient] = append(database[recipient], name_map[recipient].PushName + ": " + global)
 					for i, s := range database[recipient] {
 						box.SetCell(i, 0, tview.NewTableCell(s))
 					}
@@ -176,6 +175,8 @@ func main() {
 					box.SetTitle("Delivered")
 				} else if evt.Type == events.ReceiptTypeRead {
 					box.SetTitle("Read")
+				} else {
+					box.SetTitle("Error")
 				}
 		}
 	}
@@ -189,7 +190,7 @@ func main() {
 		} else if event.Rune() == rune(tcell.KeyEnter) {
 			row, col := left.GetSelection()
 			left.GetCell(row, col).SetTextColor(tcell.ColorGreen)
-			new_select(left.GetCell(row, 2).Text)
+			new_select(left.GetCell(row, 4).Text)
 		}
 		return event
 	})
