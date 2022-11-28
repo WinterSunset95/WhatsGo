@@ -22,9 +22,11 @@ import (
 	"github.com/rivo/tview"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
 	"google.golang.org/protobuf/proto"
+	"go.mau.fi/whatsmeow/types/events"
 )
 
 var log waLog.Logger
+var globalMsg []string
 
 func WAConnect() (*whatsmeow.Client, error) {
 	container, err := sqlstore.New("sqlite3", "file:wapp.db?_foreign_keys=on", waLog.Noop)
@@ -77,8 +79,16 @@ func parseJID(arg string) (types.JID, bool) {
 	}
 }
 
+func handler(rawEvt interface{}) {
+	switch evt := rawEvt.(type) {
+	case *events.Message:
+		global := evt.Message.GetConversation()
+		globalMsg = append(globalMsg, global)
+	}
+}
+
 func main() {
-	jid := "+916009341754@s.whatsapp.net"
+	jid := "+918798951149@s.whatsapp.net"
 	// putting my test number for now
 	recipient, ok := parseJID(jid)
 
@@ -91,6 +101,8 @@ func main() {
 		return
 	}
 
+	cli.AddEventHandler(handler)
+
 	groups, err := cli.GetJoinedGroups()
 	users, err := cli.Store.Contacts.GetAllContacts()
 
@@ -100,6 +112,9 @@ func main() {
 	// Messages container
 	box := tview.NewTable().SetSelectable(true, false)
 	box.SetBorder(true).SetTitle("Messages")
+	for i, s := range globalMsg {
+		box.SetCell(i, 0, tview.NewTableCell(s))
+	}
 
 	// Users
 	usr_row := 1
@@ -116,6 +131,9 @@ func main() {
 		left.SetCell(usr_row, 0, tview.NewTableCell(groups[i].Name))
 		usr_row++
 	}
+
+	history := waProto.HistorySync{Conversations: []*waProto.Conversation{}}
+	fmt.Println(history)
 
 	// Input field
 	text := tview.NewInputField().SetLabelWidth(0)
