@@ -14,9 +14,15 @@
 
 ### Installation
 #### Self build
-```git clone https://github.com/WinterSunset/WhatsGo``` <br>
-```cd WhatsGo``` <br>
-```go run .``` <br>
+```
+git clone https://github.com/WinterSunset/WhatsGo
+``` <br>
+```
+cd WhatsGo
+``` <br>
+```
+go run .
+``` <br>
 
 #### Pre built binaries
 * Not Available Yet
