@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal"
@@ -79,16 +80,8 @@ func parseJID(arg string) (types.JID, bool) {
 	}
 }
 
-func handler(rawEvt interface{}) {
-	switch evt := rawEvt.(type) {
-	case *events.Message:
-		global := evt.Message.GetConversation()
-		globalMsg = append(globalMsg, global)
-	}
-}
-
 func main() {
-	jid := "+918798951149@s.whatsapp.net"
+	jid := "+916009019522@s.whatsapp.net"
 	// putting my test number for now
 	recipient, ok := parseJID(jid)
 
@@ -101,7 +94,6 @@ func main() {
 		return
 	}
 
-	cli.AddEventHandler(handler)
 
 	groups, err := cli.GetJoinedGroups()
 	users, err := cli.Store.Contacts.GetAllContacts()
@@ -112,9 +104,8 @@ func main() {
 	// Messages container
 	box := tview.NewTable().SetSelectable(true, false)
 	box.SetBorder(true).SetTitle("Messages")
-	for i, s := range globalMsg {
-		box.SetCell(i, 0, tview.NewTableCell(s))
-	}
+	count := 1
+	box.SetCell(0, 0, tview.NewTableCell("Start"))
 
 	// Users
 	usr_row := 1
@@ -123,33 +114,21 @@ func main() {
 	left.SetBorder(true).SetTitle("Users")
 	left.SetCell(0, 0, tview.NewTableCell("Connected"))
 	for k, v := range users {
-		left.SetCell(usr_row, 0, tview.NewTableCell(v.FullName))
-		left.SetCell(usr_row, 1, tview.NewTableCell(k.User))
-		usr_row++
+		if v.PushName != "" {
+			left.SetCell(usr_row, 0, tview.NewTableCell(v.PushName))
+			left.SetCell(usr_row, 1, tview.NewTableCell(k.User))
+			usr_row++
+		}
 	}
 	for i := 0; i < len(groups); i++ {
 		left.SetCell(usr_row, 0, tview.NewTableCell(groups[i].Name))
 		usr_row++
 	}
 
-	history := waProto.HistorySync{Conversations: []*waProto.Conversation{}}
-	fmt.Println(history)
-
 	// Input field
 	text := tview.NewInputField().SetLabelWidth(0)
 	text.SetBorder(true)
 	text.SetFieldBackgroundColor(tview.Styles.PrimitiveBackgroundColor)
-	text.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Rune() == rune(tcell.KeyEnter) {
-			msg := text.GetText()
-			text.SetText("")
-			cli.SendMessage(context.Background()	, recipient, "", &waProto.Message{Conversation: proto.String(msg)})
-		} else if event.Rune() == rune(tcell.KeyTab) {
-			app.SetFocus(left)
-		}
-		return event
-	})
-
 
 	// Messages
 	right := tview.NewFlex().SetDirection(tview.FlexRow)
@@ -158,6 +137,50 @@ func main() {
 
 	body := tview.NewFlex().SetDirection(tview.FlexColumn)
 	body.AddItem(left, 0, 1, false).AddItem(right, 0, 3, true)
+	
+	// handlers
+	handler := func(rawEvt interface{}) {
+		switch evt := rawEvt.(type) {
+			case *events.Message:
+				global := evt.Message.GetConversation()
+				box.SetCell(count, 0, tview.NewTableCell(global))
+				count++
+			case *events.Receipt:
+				if evt.Type == events.ReceiptTypeDelivered {
+					box.SetCell(count, 0, tview.NewTableCell(text.GetText()))
+					text.SetText("")
+					box.SetTitle("Delivered")
+					count++
+				} else if evt.Type == events.ReceiptTypeRead {
+					box.SetTitle("Read")
+				}
+		}
+	}
+	cli.AddEventHandler(handler)
+	time.Sleep(0 * time.Millisecond)
+
+	// Input captures
+	left.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Rune() == rune(tcell.KeyTab) {
+			app.SetFocus(box)
+		}
+		return event
+	})
+	box.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Rune() == rune(tcell.KeyTab) {
+			app.SetFocus(text)
+		}
+		return event
+	})
+	text.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Rune() == rune(tcell.KeyEnter) {
+			msg := text.GetText()
+			cli.SendMessage(context.Background()	, recipient, "", &waProto.Message{Conversation: proto.String(msg)})
+		} else if event.Rune() == rune(tcell.KeyTab) {
+			app.SetFocus(left)
+		}
+		return event
+	})
 
 	if err := app.SetRoot(body, true).Run(); err != nil {
 		panic(err)
