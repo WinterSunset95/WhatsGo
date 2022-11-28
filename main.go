@@ -28,12 +28,6 @@ import (
 
 var log waLog.Logger
 
-type Contact struct {
-	name string
-	jid types.JID
-	messages []string
-}
-
 func WAConnect() (*whatsmeow.Client, error) {
 	container, err := sqlstore.New("sqlite3", "file:wapp.db?_foreign_keys=on", waLog.Noop)
 	if err != nil {
@@ -86,16 +80,34 @@ func parseJID(arg string) (types.JID, bool) {
 }
 
 func main() {
-	jid := "+916009019522@s.whatsapp.net"
+	// map holding the JID with an array of messages
+	var database = make(map[types.JID][]string)
+	// map holding the JID with the username
+	var name_map = make(map[types.JID]string)
+
+	var recipient types.JID
+
 	// putting my test number for now
-	recipient, ok := parseJID(jid)
-	if ok {
-		fmt.Println("Ok")
-	}
 	cli, err := WAConnect()
 	if err != nil {
 		fmt.Println(err)
 		return
+	}
+
+	new_select := func(jid string) {
+		rec, ok := parseJID(jid)
+		recipient = rec
+		if ok {
+			fmt.Println("Ok")
+		}
+		db_check, d_ok := database[recipient]
+		name_check, n_ok := name_map[recipient]
+
+		if !d_ok && !n_ok {
+			database[recipient] = []string{}
+			name_map[recipient] = "User"
+			fmt.Println(db_check, name_check)
+		}
 	}
 
 	// Getting all the groups and contacts
@@ -108,7 +120,6 @@ func main() {
 	// Messages container
 	box := tview.NewTable().SetSelectable(true, false)
 	box.SetBorder(true).SetTitle("Messages")
-	count := 1
 	box.SetCell(0, 0, tview.NewTableCell("Start"))
 
 	// Users
@@ -148,15 +159,21 @@ func main() {
 	handler := func(rawEvt interface{}) {
 		switch evt := rawEvt.(type) {
 			case *events.Message:
-				global := evt.Message.GetConversation()
-				box.SetCell(count, 0, tview.NewTableCell(global))
-				count++
+				if evt.Info.Sender == recipient {
+					global := evt.Message.GetConversation()
+					database[recipient] = append(database[recipient], name_map[recipient] + ": " + global)
+					for i, s := range database[recipient] {
+						box.SetCell(i, 0, tview.NewTableCell(s))
+					}
+				}
 			case *events.Receipt:
 				if evt.Type == events.ReceiptTypeDelivered {
-					box.SetCell(count, 0, tview.NewTableCell(text.GetText()))
+					database[recipient] = append(database[recipient], "Me: " + text.GetText())
+					for i, s := range database[recipient] {
+						box.SetCell(i, 0, tview.NewTableCell(s))
+					}
 					text.SetText("")
 					box.SetTitle("Delivered")
-					count++
 				} else if evt.Type == events.ReceiptTypeRead {
 					box.SetTitle("Read")
 				}
@@ -169,6 +186,10 @@ func main() {
 	left.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Rune() == rune(tcell.KeyTab) {
 			app.SetFocus(box)
+		} else if event.Rune() == rune(tcell.KeyEnter) {
+			row, col := left.GetSelection()
+			left.GetCell(row, col).SetTextColor(tcell.ColorGreen)
+			new_select(left.GetCell(row, 2).Text)
 		}
 		return event
 	})
