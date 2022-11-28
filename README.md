@@ -6,6 +6,7 @@
 
 # WhatsGo
 * A command line whatsapp client
+<img src="whatsgo.png" alt="">
 
 ### Requirements
 * Golang
@@ -13,9 +14,9 @@
 
 ### Installation
 #### Self build
-```git clone https://github.com/WinterSunset/WhatsGo```
-```cd WhatsGo```
-```go run .```
+```git clone https://github.com/WinterSunset/WhatsGo``` <br>
+```cd WhatsGo``` <br>
+```go run .``` <br>
 
 #### Pre built binaries
 * Not Available Yet
