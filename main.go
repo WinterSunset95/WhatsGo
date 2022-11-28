@@ -27,7 +27,12 @@ import (
 )
 
 var log waLog.Logger
-var globalMsg []string
+
+type Contact struct {
+	name string
+	jid types.JID
+	messages []string
+}
 
 func WAConnect() (*whatsmeow.Client, error) {
 	container, err := sqlstore.New("sqlite3", "file:wapp.db?_foreign_keys=on", waLog.Noop)
@@ -84,7 +89,6 @@ func main() {
 	jid := "+916009019522@s.whatsapp.net"
 	// putting my test number for now
 	recipient, ok := parseJID(jid)
-
 	if ok {
 		fmt.Println("Ok")
 	}
@@ -94,7 +98,7 @@ func main() {
 		return
 	}
 
-
+	// Getting all the groups and contacts
 	groups, err := cli.GetJoinedGroups()
 	users, err := cli.Store.Contacts.GetAllContacts()
 
@@ -117,11 +121,13 @@ func main() {
 		if v.PushName != "" {
 			left.SetCell(usr_row, 0, tview.NewTableCell(v.PushName))
 			left.SetCell(usr_row, 1, tview.NewTableCell(k.User))
+			left.SetCell(usr_row, 2, tview.NewTableCell(k.String()))
 			usr_row++
 		}
 	}
 	for i := 0; i < len(groups); i++ {
 		left.SetCell(usr_row, 0, tview.NewTableCell(groups[i].Name))
+		left.SetCell(usr_row, 1, tview.NewTableCell(groups[i].JID.Server))
 		usr_row++
 	}
 
