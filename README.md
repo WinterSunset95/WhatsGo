@@ -13,16 +13,20 @@
 * A terminal
 
 ### Installation
-#### Self build
+#### Clone and run
+
 ```
 git clone https://github.com/WinterSunset/WhatsGo
-``` <br>
+``` 
+
 ```
 cd WhatsGo
-``` <br>
+```
+
 ```
 go run .
-``` <br>
+```
+
 
 #### Pre built binaries
 * Not Available Yet
