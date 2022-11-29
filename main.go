@@ -3,7 +3,7 @@
 
 
 // the top of my laptop screen is broken
-// i'm leaving this empty space here so I can see the code
+// i'm leaving this empty space here so I can see code at the top
 package main
 
 import (
@@ -105,7 +105,6 @@ func main() {
 			filtered[k] = v
 		}
 	}
-	trial := cli.Store.Account.String()
 
 	// Declaring the main application
 	app := tview.NewApplication()
@@ -201,7 +200,7 @@ func main() {
 					box.SetCell(i, 0, tview.NewTableCell(s))
 				}
 				if evt.Type == events.ReceiptTypeDelivered {
-					box.SetTitle(trial)
+					box.SetTitle("Delivered")
 				} else if evt.Type == events.ReceiptTypeRead {
 					box.SetTitle("Read")
 				} else if evt.MessageSource.IsFromMe {
