@@ -29,6 +29,11 @@ import (
 
 var log waLog.Logger
 
+type UserMessage struct {
+	name string
+	text string
+}
+
 func WAConnect() (*whatsmeow.Client, error) {
 	container, err := sqlstore.New("sqlite3", "file:wapp.db?_foreign_keys=on", waLog.Noop)
 	if err != nil {
@@ -82,7 +87,7 @@ func parseJID(arg string) (types.JID, bool) {
 
 func main() {
 	// map holding the JID with an array of messages
-	var database = make(map[types.JID][]string)
+	var database = make(map[types.JID][]UserMessage)
 	// map holding the JID with the username
 	var name_map = make(map[types.JID]types.ContactInfo)
 
@@ -141,15 +146,15 @@ func main() {
 	// Left side of screen - Contacts, Groups, Filter input
 	left := tview.NewFlex().SetDirection(tview.FlexRow)
 	left.AddItem(list, 0, 20, false)
-	left.AddItem(filter_input, 0, 1, false)
+	left.AddItem(filter_input, 0, 1, true)
 
 	// Right side of screen - Messages, Input
 	right := tview.NewFlex().SetDirection(tview.FlexRow)
 	right.AddItem(box, 0, 15, false)
-	right.AddItem(text, 0, 1, true)
+	right.AddItem(text, 0, 1, false)
 
 	body := tview.NewFlex().SetDirection(tview.FlexColumn)
-	body.AddItem(left, 0, 1, false).AddItem(right, 0, 3, true)
+	body.AddItem(left, 0, 1, true).AddItem(right, 0, 3, false)
 
 	// When contact is selected
 	new_select := func(jid string) {
@@ -162,7 +167,7 @@ func main() {
 		name_check, n_ok := name_map[recipient]
 		// check if user is already in db
 		if !d_ok && !n_ok && db_check == nil && name_check.Found == false {
-			database[recipient] = []string{}
+			database[recipient] = []UserMessage{}
 			name_map[recipient], err = cli.Store.Contacts.GetContact(recipient)
 		}
 		box.Clear()
@@ -193,10 +198,22 @@ func main() {
 		switch evt := rawEvt.(type) {
 			case *events.Message:
 				if evt.Info.Sender == recipient {
-					global := evt.Message.GetConversation()
-					database[recipient] = append(database[recipient], name_map[recipient].PushName + ": " + global)
+					var incoming_msg string
+					img := evt.Message.GetImageMessage()
+					sticker := evt.Message.GetStickerMessage()
+					if img != nil {
+						// if the incoming message is an image
+						incoming_msg = "Image Message"
+					} else if sticker != nil {
+						// if sticker
+						incoming_msg = "Sticker Message"
+					} else {
+						incoming_msg = evt.Message.GetConversation()
+					}
+					database[recipient] = append(database[recipient], UserMessage{name_map[recipient].PushName, incoming_msg})
 					for i, s := range database[recipient] {
-						box.SetCell(i, 0, tview.NewTableCell(s))
+						box.SetCell(i, 0, tview.NewTableCell(s.name + ": "))
+						box.SetCell(i, 1, tview.NewTableCell(s.text))
 					}
 					app.Draw()
 				} else if evt.Info.Sender != recipient {
@@ -205,22 +222,23 @@ func main() {
 					// and update the list
 					// Add user if not in db
 					if val, ok := database[evt.Info.Sender]; ok {
-						database[evt.Info.Sender] = append(val, name_map[evt.Info.Sender].PushName + ":" + evt.Message.GetConversation())
+						database[evt.Info.Sender] = append(val, UserMessage{name_map[recipient].PushName, evt.Message.GetConversation()})
 					} else {
-						database[evt.Info.Sender] = []string{evt.Message.GetConversation()}
+						database[evt.Info.Sender] = []UserMessage{{name_map[recipient].PushName, evt.Message.GetConversation()}}
 						name_map[evt.Info.Sender], err = cli.Store.Contacts.GetContact(evt.Info.Sender)
 					}
 				} else if evt.Info.MessageSource.IsFromMe {
-					global := evt.Message.GetConversation()
-					database[recipient] = append(database[recipient], name_map[recipient].PushName + ": " + global)
+					database[recipient] = append(database[recipient], UserMessage{"me", evt.Message.GetConversation()})
 					for i, s := range database[recipient] {
-						box.SetCell(i, 0, tview.NewTableCell(s))
+						box.SetCell(i, 0, tview.NewTableCell(s.name +	": "))
+						box.SetCell(i, 1, tview.NewTableCell(s.text))
 					}
 					app.Draw()
 				}
 			case *events.Receipt:
 				for i, s := range database[recipient] {
-					box.SetCell(i, 0, tview.NewTableCell(s))
+					box.SetCell(i, 0, tview.NewTableCell(s.name + ": "))
+					box.SetCell(i, 1, tview.NewTableCell(s.text))
 				}
 				if evt.Type == events.ReceiptTypeDelivered {
 					box.SetTitle("Delivered")
@@ -241,8 +259,9 @@ func main() {
 	// Input captures
 	list.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyTab {
-			app.SetFocus(filter_input)
+			app.SetFocus(box)
 		} else if event.Key() == tcell.KeyEnter {
+			app.SetFocus(text)
 			row, col := list.GetSelection()
 			list.GetCell(row, col).SetTextColor(tcell.ColorGreen)
 			new_select(list.GetCell(row, 4).Text)
@@ -260,7 +279,7 @@ func main() {
 	filter_input.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		filter(filter_input.GetText())
 		if event.Key() == tcell.KeyEnter || event.Key() == tcell.KeyTab {
-			app.SetFocus(text)
+			app.SetFocus(list)
 		}
 		return event
 	})
@@ -269,12 +288,12 @@ func main() {
 		if event.Key() == tcell.KeyEnter && text.GetText() != "" {
 			msg = text.GetText()
 			text.SetText("")
-			database[recipient] = append(database[recipient], "Me: " + msg)
+			database[recipient] = append(database[recipient], UserMessage{"Me", msg})
 			// u/darkhz told me I should use a goroutine for this.. No idea what that is...
 			cli.SendMessage(context.Background()	, recipient, "", &waProto.Message{Conversation: proto.String(msg)})
 			msg = ""
 		} else if event.Key() == tcell.KeyTab {
-			app.SetFocus(list)
+			app.SetFocus(filter_input)
 		}
 		return event
 	})
