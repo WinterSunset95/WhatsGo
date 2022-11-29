@@ -2,7 +2,8 @@
 
 
 
-
+// the top of my laptop screen is broken
+// i'm leaving this empty space here so I can see the code
 package main
 
 import (
@@ -94,24 +95,17 @@ func main() {
 		return
 	}
 
-	new_select := func(jid string) {
-		rec, ok := parseJID(jid)
-		recipient = rec
-		if ok {
-			fmt.Println("Ok")
-		}
-		db_check, d_ok := database[recipient]
-		name_check, n_ok := name_map[recipient]
-
-		if !d_ok && !n_ok && db_check == nil && name_check.Found == false {
-			database[recipient] = []string{}
-			name_map[recipient], err = cli.Store.Contacts.GetContact(recipient)
-		}
-	}
-
 	// Getting all the groups and contacts
 	groups, err := cli.GetJoinedGroups()
 	users, err := cli.Store.Contacts.GetAllContacts()
+	filtered := make(map[types.JID]types.ContactInfo)
+	for k, v := range users {
+		// Ignore this part please. I will come back to it later
+		if strings.Contains(v.PushName, "") || strings.Contains(v.PushName, "") {
+			filtered[k] = v
+		}
+	}
+	trial := cli.Store.Account.String()
 
 	// Declaring the main application
 	app := tview.NewApplication()
@@ -123,21 +117,21 @@ func main() {
 
 	// Users
 	usr_row := 1
-	left := tview.NewTable().SetSelectable(true, false)
-	left.GetMouseCapture()
-	left.SetBorder(true).SetTitle("Users")
-	left.SetCell(0, 0, tview.NewTableCell("Connected"))
-	for k, v := range users {
+	list := tview.NewTable().SetSelectable(true, false)
+	list.GetMouseCapture()
+	list.SetBorder(true).SetTitle("Users")
+	list.SetCell(0, 0, tview.NewTableCell("Connected"))
+	for k, v := range filtered {
 		if v.PushName != "" {
-			left.SetCell(usr_row, 0, tview.NewTableCell(v.PushName))
-			left.SetCell(usr_row, 3, tview.NewTableCell(k.User))
-			left.SetCell(usr_row, 4, tview.NewTableCell(k.String()))
+			list.SetCell(usr_row, 0, tview.NewTableCell(v.PushName))
+			list.SetCell(usr_row, 3, tview.NewTableCell(k.User))
+			list.SetCell(usr_row, 4, tview.NewTableCell(k.String()))
 			usr_row++
 		}
 	}
 	for i := 0; i < len(groups); i++ {
-		left.SetCell(usr_row, 0, tview.NewTableCell(groups[i].Name))
-		left.SetCell(usr_row, 1, tview.NewTableCell(groups[i].JID.Server))
+		list.SetCell(usr_row, 0, tview.NewTableCell(groups[i].Name))
+		list.SetCell(usr_row, 1, tview.NewTableCell(groups[i].JID.Server))
 		usr_row++
 	}
 
@@ -152,9 +146,27 @@ func main() {
 	right.AddItem(text, 0, 1, true)
 
 	body := tview.NewFlex().SetDirection(tview.FlexColumn)
-	body.AddItem(left, 0, 1, false).AddItem(right, 0, 3, true)
-	
+	body.AddItem(list, 0, 1, false).AddItem(right, 0, 3, true)
+
+	// When contact is selected
+	new_select := func(jid string) {
+		rec, ok := parseJID(jid)
+		recipient = rec
+		if ok {
+			fmt.Println("Ok")
+		}
+		db_check, d_ok := database[recipient]
+		name_check, n_ok := name_map[recipient]
+		// check if user is already in db
+		if !d_ok && !n_ok && db_check == nil && name_check.Found == false {
+			database[recipient] = []string{}
+			name_map[recipient], err = cli.Store.Contacts.GetContact(recipient)
+		}
+		box.Clear()
+	}
+
 	// handlers
+	msg := ""
 	handler := func(rawEvt interface{}) {
 		switch evt := rawEvt.(type) {
 			case *events.Message:
@@ -164,48 +176,75 @@ func main() {
 					for i, s := range database[recipient] {
 						box.SetCell(i, 0, tview.NewTableCell(s))
 					}
-				}
-			case *events.Receipt:
-				if evt.Type == events.ReceiptTypeDelivered {
-					database[recipient] = append(database[recipient], "Me: " + text.GetText())
+					app.Draw()
+				} else if evt.Info.Sender != recipient {
+					// if the message is not from the selected user
+					// then we need to add it to the database
+					// and update the list
+					// Add user if not in db
+					if val, ok := database[evt.Info.Sender]; ok {
+						database[evt.Info.Sender] = append(val, name_map[evt.Info.Sender].PushName + ":" + evt.Message.GetConversation())
+					} else {
+						database[evt.Info.Sender] = []string{evt.Message.GetConversation()}
+						name_map[evt.Info.Sender], err = cli.Store.Contacts.GetContact(evt.Info.Sender)
+					}
+				} else if evt.Info.MessageSource.IsFromMe {
+					global := evt.Message.GetConversation()
+					database[recipient] = append(database[recipient], name_map[recipient].PushName + ": " + global)
 					for i, s := range database[recipient] {
 						box.SetCell(i, 0, tview.NewTableCell(s))
 					}
-					text.SetText("")
-					box.SetTitle("Delivered")
+					app.Draw()
+				}
+			case *events.Receipt:
+				for i, s := range database[recipient] {
+					box.SetCell(i, 0, tview.NewTableCell(s))
+				}
+				if evt.Type == events.ReceiptTypeDelivered {
+					box.SetTitle(trial)
 				} else if evt.Type == events.ReceiptTypeRead {
 					box.SetTitle("Read")
-				} else {
-					box.SetTitle("Error")
+				} else if evt.MessageSource.IsFromMe {
 				}
+				app.Draw()
+			case *events.HistorySync:
+				box.SetTitle("History Sync")
 		}
 	}
+
 	cli.AddEventHandler(handler)
+	// Ignore this too I might need it later
 	time.Sleep(0 * time.Millisecond)
 
 	// Input captures
-	left.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	list.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Rune() == rune(tcell.KeyTab) {
 			app.SetFocus(box)
 		} else if event.Rune() == rune(tcell.KeyEnter) {
-			row, col := left.GetSelection()
-			left.GetCell(row, col).SetTextColor(tcell.ColorGreen)
-			new_select(left.GetCell(row, 4).Text)
+			row, col := list.GetSelection()
+			list.GetCell(row, col).SetTextColor(tcell.ColorGreen)
+			new_select(list.GetCell(row, 4).Text)
 		}
 		return event
 	})
+
 	box.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Rune() == rune(tcell.KeyTab) {
 			app.SetFocus(text)
 		}
 		return event
 	})
+
 	text.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Rune() == rune(tcell.KeyEnter) {
-			msg := text.GetText()
+		if event.Rune() == rune(tcell.KeyEnter) && text.GetText() != "" {
+			msg = text.GetText()
+			text.SetText("")
+			database[recipient] = append(database[recipient], "Me: " + msg)
+			// u/darkhz told me I should use a goroutine for this.. No idea what that is...
 			cli.SendMessage(context.Background()	, recipient, "", &waProto.Message{Conversation: proto.String(msg)})
+			msg = ""
 		} else if event.Rune() == rune(tcell.KeyTab) {
-			app.SetFocus(left)
+			app.SetFocus(list)
 		}
 		return event
 	})
