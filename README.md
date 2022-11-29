@@ -8,6 +8,12 @@
 * A command line whatsapp client
 <img src="whatsgo.png" alt="">
 
+### Current goals
+* Get the message history of a contact (REALLY need help with this)
+* View image messages in the terminal (skel ??)
+* Send message in a group
+* Send image message
+
 ### Requirements
 * Golang
 * A terminal
