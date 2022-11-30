@@ -1,13 +1,10 @@
-
-
-
-
 // the top of my laptop screen is broken
 // i'm leaving this empty space here so I can see code at the top
 package main
 
 import (
 	"os"
+	//"os/exec"
 	"context"
 	"fmt"
 	"strings"
@@ -15,16 +12,18 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal"
+
 	//"github.com/mdp/qrterminal/v3"
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/store/sqlstore"
-	waLog "go.mau.fi/whatsmeow/util/log"
-	"go.mau.fi/whatsmeow/types"
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"go.mau.fi/whatsmeow"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
-	"google.golang.org/protobuf/proto"
+	//"go.mau.fi/whatsmeow/store"
+	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	waLog "go.mau.fi/whatsmeow/util/log"
+	"google.golang.org/protobuf/proto"
 )
 
 var log waLog.Logger
@@ -96,7 +95,6 @@ func main() {
 	// putting my test number for now
 	cli, err := WAConnect()
 	if err != nil {
-		fmt.Println(err)
 		return
 	}
 
@@ -121,7 +119,8 @@ func main() {
 	list.SetCell(0, 0, tview.NewTableCell("Connected"))
 	for k, v := range users {
 		if v.PushName != "" {
-			list.SetCell(usr_row, 0, tview.NewTableCell(v.PushName))
+			list.SetCell(usr_row, 0, tview.NewTableCell(v.FullName))
+			list.SetCell(usr_row, 1, tview.NewTableCell(v.PushName))
 			list.SetCell(usr_row, 3, tview.NewTableCell(k.User))
 			list.SetCell(usr_row, 4, tview.NewTableCell(k.String()))
 			usr_row++
@@ -203,10 +202,15 @@ func main() {
 					sticker := evt.Message.GetStickerMessage()
 					if img != nil {
 						// if the incoming message is an image
-						incoming_msg = "Image Message"
+						data, err := cli.Download(img)
+						if err != nil && data == nil {
+							incoming_msg = "FAILED TO LOAD IMAGE"
+						} else {
+							incoming_msg = "IMAGE	MESSAGE"
+						}
 					} else if sticker != nil {
 						// if sticker
-						incoming_msg = "Sticker Message"
+						incoming_msg = "STICKER MESSAGE"
 					} else {
 						incoming_msg = evt.Message.GetConversation()
 					}
@@ -221,10 +225,27 @@ func main() {
 					// then we need to add it to the database
 					// and update the list
 					// Add user if not in db
-					if val, ok := database[evt.Info.Sender]; ok {
-						database[evt.Info.Sender] = append(val, UserMessage{name_map[recipient].PushName, evt.Message.GetConversation()})
+					var incoming_msg string
+					img := evt.Message.GetImageMessage()
+					sticker := evt.Message.GetStickerMessage()
+					if img != nil {
+						// if the incoming message is an image
+						data, err := cli.Download(img)
+						if err != nil && data == nil {
+							incoming_msg = "FAILED TO LOAD IMAGE"
+						} else {
+							incoming_msg = "IMAGE	MESSAGE"
+						}
+					} else if sticker != nil {
+						// if sticker
+						incoming_msg = "STICKER MESSAGE"
 					} else {
-						database[evt.Info.Sender] = []UserMessage{{name_map[recipient].PushName, evt.Message.GetConversation()}}
+						incoming_msg = evt.Message.GetConversation()
+					}
+					if val, ok := database[evt.Info.Sender]; ok {
+						database[evt.Info.Sender] = append(val, UserMessage{evt.Info.PushName, incoming_msg})
+					} else {
+						database[evt.Info.Sender] = []UserMessage{{evt.Info.PushName, incoming_msg}}
 						name_map[evt.Info.Sender], err = cli.Store.Contacts.GetContact(evt.Info.Sender)
 					}
 				} else if evt.Info.MessageSource.IsFromMe {
@@ -265,6 +286,10 @@ func main() {
 			row, col := list.GetSelection()
 			list.GetCell(row, col).SetTextColor(tcell.ColorGreen)
 			new_select(list.GetCell(row, 4).Text)
+			for i, s := range database[recipient] {
+				box.SetCell(i, 0, tview.NewTableCell(s.name + ": "))
+				box.SetCell(i, 1, tview.NewTableCell(s.text))
+			}
 		}
 		return event
 	})
