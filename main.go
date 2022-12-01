@@ -3,11 +3,10 @@
 package main
 
 import (
-	"os"
-	"os/exec"
-	//"os/exec"
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -46,7 +45,6 @@ func WAConnect() (*whatsmeow.Client, error) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(container.GetAllDevices())
 	client := whatsmeow.NewClient(deviceStore, waLog.Noop)
 	if client.Store.ID == nil {
 		qrChan, _ := client.GetQRChannel(context.Background())
@@ -92,6 +90,12 @@ func parseJID(arg string) (types.JID, bool) {
 func main() {
 	// map holding the JID with an array of messages
 	var newDb = make(map[types.JID][]events.Message)
+	// First read db.json file to see if there is any data
+	content, err := os.ReadFile("./db.json")
+	if err != nil {
+		fmt.Println("Error reading db.json file")
+	}
+	json.Unmarshal(content, &newDb)
 	// map holding the JID with the username
 	var name_map = make(map[types.JID]types.ContactInfo)
 
@@ -159,7 +163,9 @@ func main() {
 	right.AddItem(text, 0, 1, false)
 
 	logs := tview.NewTextArea()
-	logs.SetText("fuckkk", true)
+	logs.SetText("If you see this message, then no error has happened", true)
+	logs.SetBorder(true).SetTitle("Error Logs For Debugging")
+	logs.SetBorderColor(tcell.ColorRed)
 
 	body := tview.NewFlex().SetDirection(tview.FlexColumn)
 	body.AddItem(left, 0, 1, true).AddItem(right, 0, 3, false)
@@ -167,6 +173,17 @@ func main() {
 	pages := tview.NewPages()
 	pages.AddPage("WhatsGo", body, true, true)
 	pages.AddPage("Logs", logs, true, false)
+
+	// Export database to json file
+	exportDb := func() {
+		jsonType, err := json.MarshalIndent(newDb, "", "	")
+		if err != nil {
+			logs.SetText("Error marshalling json: "+err.Error(), true)
+		} else {
+			logs.SetText(string(jsonType), true)
+			os.WriteFile("db.json", jsonType, 0644)
+		}
+	}
 
 	// When contact is selected
 	new_select := func(jid string) {
@@ -186,14 +203,23 @@ func main() {
 	}
 	// Filtering
 	filter := func(text string) {
-		filtered = make(map[types.JID]types.ContactInfo)
 		list.Clear()
 		usr_row = 1
+		filtered = make(map[types.JID]types.ContactInfo)
+		filtered_groups := make(map[types.JID]types.GroupInfo)
+		// Filtering contacts
 		for k, v := range users {
 			if strings.Contains(v.PushName, text) || strings.Contains(v.FullName, text) || strings.Contains(k.User, text) {
 				filtered[k] = v
 			}
 		}
+		// Filtering groups
+		for _, v := range groups {
+			if strings.Contains(v.GroupName.Name, text) {
+				filtered_groups[v.JID] = *v
+			}
+		}
+		// Render filtered contacts
 		for k, v := range filtered {
 			if v.PushName != "" {
 				list.SetCell(usr_row, 0, tview.NewTableCell(v.PushName))
@@ -201,6 +227,13 @@ func main() {
 				list.SetCell(usr_row, 4, tview.NewTableCell(k.String()))
 				usr_row++
 			}
+		}
+		// Render filtered groups
+		for k, v := range filtered_groups {
+			list.SetCell(usr_row, 0, tview.NewTableCell(v.GroupName.Name))
+			list.SetCell(usr_row, 3, tview.NewTableCell(k.User))
+			list.SetCell(usr_row, 4, tview.NewTableCell(v.JID.String()))
+			usr_row++
 		}
 	}
 
@@ -212,28 +245,30 @@ func main() {
 			} else {
 				box.SetCell(i, 0, tview.NewTableCell(s.Info.PushName + ": "))
 			}
+			// Check if message is a reply
 			// Check message type and act accordingly
 			if s.Info.MediaType == "" {
-				box.SetCell(i, 1, tview.NewTableCell(s.Message.GetConversation()))
+				box.SetCell(i, 2, tview.NewTableCell(s.Message.GetConversation()))
 			} else if s.Info.MediaType == "image" {
 				result_message := "IMAGE MESSAGE"
 				img := s.Message.GetImageMessage()
-				data, err := cli.Download(img)
-				logs.SetText(string(data), true)
+				_, err := cli.Download(img)
 				if err != nil {
 					result_message = "IMAGE LOAD ERROR"
 				}
-				box.SetCell(i, 1, tview.NewTableCell(result_message))
+				box.SetCell(i, 2, tview.NewTableCell(result_message))
 			} else if s.Info.MediaType == "sticker" {
 				result_message := "STICKER MESSAGE"
 				img := s.Message.GetStickerMessage()
-				data, err := cli.Download(img)
-				logs.SetText(string(data), true)
+				_, err := cli.Download(img)
 				if err != nil {
 					result_message = "STICKER LOAD ERROR"
 				}
-				box.SetCell(i, 1, tview.NewTableCell(result_message))
+				box.SetCell(i, 2, tview.NewTableCell(result_message))
+			} else {
+				logs.SetText("Unknown message type: "+s.Info.MediaType, true)
 			}
+			//box.SetCell(i, 100, tview.NewTableCell(s.Info.ID))
 		}
 	}
 
@@ -242,26 +277,19 @@ func main() {
 	handler := func(rawEvt interface{}) {
 		switch evt := rawEvt.(type) {
 			case *events.HistorySync:
-				logs.SetBorder(true)
+				logs.SetBorder(false)
 			case *events.Message:
-				if evt.Info.Sender == recipient || evt.Info.IsFromMe {
-					newDb[recipient] = append(newDb[recipient], *evt)
-					render_messages()
+				if val, ok := newDb[evt.Info.Chat]; ok {
+					newDb[evt.Info.Chat] = append(val, *evt)
 				} else {
-					// if the message is not from the selected user
-					// then we need to add it to the database
-					// and update the list
-					// Add user if not in db
-					if val, ok := newDb[evt.Info.Sender]; ok {
-						newDb[evt.Info.Sender] = append(val, *evt)
-					} else {
-						newDb[evt.Info.Sender] = []events.Message{*evt}
-						name_map[evt.Info.Sender], err = cli.Store.Contacts.GetContact(evt.Info.Sender)
-					}
+					newDb[evt.Info.Chat] = []events.Message{*evt}
 				}
+				render_messages()
+				exportDb()
 				app.Draw()
 			case *events.Receipt:
 				render_messages()
+				exportDb()
 				if evt.Type == events.ReceiptTypeDelivered {
 					box.SetTitle("Delivered")
 				} else if evt.Type == events.ReceiptTypeRead {
@@ -311,7 +339,9 @@ func main() {
 			text.SetText("")
 			// Build a new message
 			newMsg := events.Message{}
-			newMsg.Message = &waProto.Message{Conversation: proto.String(msg)}
+			newMsg.Message = &waProto.Message{
+				Conversation: proto.String(msg),
+			}
 			newMsg.Info.MessageSource.IsFromMe = true
 			newDb[recipient] = append(newDb[recipient], newMsg)
 			// u/darkhz told me I should use a goroutine for this.. No idea what that is...
