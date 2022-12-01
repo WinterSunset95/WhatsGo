@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -237,7 +238,14 @@ func main() {
 	}
 
 	render_messages := func() {
-		for i, s := range newDb[recipient] {
+		toRender := make(map[types.JID][]events.Message)
+		for i := 50; i > 0; i-- {
+			if len(newDb[recipient]) > i {
+				toRender[recipient] = append(toRender[recipient], newDb[recipient][len(newDb[recipient])-i])
+			}
+			logs.SetText(logs.GetText() + strconv.Itoa(i), true)
+		}
+		for i, s := range toRender[recipient] {
 			// Check if message is from me
 			if s.Info.MessageSource.IsFromMe {
 				box.SetCell(i, 0, tview.NewTableCell("Me" + ": "))
