@@ -4,6 +4,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	//"os/exec"
 	"context"
 	"fmt"
@@ -203,6 +204,39 @@ func main() {
 		}
 	}
 
+	render_messages := func() {
+		for i, s := range newDb[recipient] {
+			// Check if message is from me
+			if s.Info.MessageSource.IsFromMe {
+				box.SetCell(i, 0, tview.NewTableCell("Me" + ": "))
+			} else {
+				box.SetCell(i, 0, tview.NewTableCell(s.Info.PushName + ": "))
+			}
+			// Check message type and act accordingly
+			if s.Info.MediaType == "" {
+				box.SetCell(i, 1, tview.NewTableCell(s.Message.GetConversation()))
+			} else if s.Info.MediaType == "image" {
+				result_message := "IMAGE MESSAGE"
+				img := s.Message.GetImageMessage()
+				data, err := cli.Download(img)
+				logs.SetText(string(data), true)
+				if err != nil {
+					result_message = "IMAGE LOAD ERROR"
+				}
+				box.SetCell(i, 1, tview.NewTableCell(result_message))
+			} else if s.Info.MediaType == "sticker" {
+				result_message := "STICKER MESSAGE"
+				img := s.Message.GetStickerMessage()
+				data, err := cli.Download(img)
+				logs.SetText(string(data), true)
+				if err != nil {
+					result_message = "STICKER LOAD ERROR"
+				}
+				box.SetCell(i, 1, tview.NewTableCell(result_message))
+			}
+		}
+	}
+
 	// handlers
 	msg := ""
 	handler := func(rawEvt interface{}) {
@@ -212,14 +246,7 @@ func main() {
 			case *events.Message:
 				if evt.Info.Sender == recipient || evt.Info.IsFromMe {
 					newDb[recipient] = append(newDb[recipient], *evt)
-					for i, s := range newDb[recipient] {
-						if evt.Info.MessageSource.IsFromMe {
-							box.SetCell(i, 0, tview.NewTableCell("Me" + ": "))
-						} else {
-							box.SetCell(i, 0, tview.NewTableCell(s.Info.PushName + ": "))
-						}
-						box.SetCell(i, 1, tview.NewTableCell(s.Message.GetConversation()))
-					}
+					render_messages()
 				} else {
 					// if the message is not from the selected user
 					// then we need to add it to the database
@@ -234,14 +261,7 @@ func main() {
 				}
 				app.Draw()
 			case *events.Receipt:
-				for i, s := range newDb[recipient] {
-					if s.Info.MessageSource.IsFromMe {
-						box.SetCell(i, 0, tview.NewTableCell("Me" + ": "))
-					} else {
-						box.SetCell(i, 0, tview.NewTableCell(s.Info.PushName + ": "))
-					}
-					box.SetCell(i, 1, tview.NewTableCell(s.Message.GetConversation()))
-				}
+				render_messages()
 				if evt.Type == events.ReceiptTypeDelivered {
 					box.SetTitle("Delivered")
 				} else if evt.Type == events.ReceiptTypeRead {
@@ -265,14 +285,7 @@ func main() {
 			row, col := list.GetSelection()
 			list.GetCell(row, col).SetTextColor(tcell.ColorGreen)
 			new_select(list.GetCell(row, 4).Text)
-			for i, s := range newDb[recipient] {
-					if s.Info.MessageSource.IsFromMe {
-						box.SetCell(i, 0, tview.NewTableCell("Me" + ": "))
-					} else {
-						box.SetCell(i, 0, tview.NewTableCell(s.Info.PushName + ": "))
-					}
-					box.SetCell(i, 1, tview.NewTableCell(s.Message.GetConversation()))
-			}
+			render_messages()
 		}
 		return event
 	})
