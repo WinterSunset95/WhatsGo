@@ -180,7 +180,6 @@ func main() {
 		if err != nil {
 			logs.SetText("Error marshalling json: "+err.Error(), true)
 		} else {
-			logs.SetText(string(jsonType), true)
 			os.WriteFile("db.json", jsonType, 0644)
 		}
 	}
