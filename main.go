@@ -1,30 +1,30 @@
-
-
-
-
 // the top of my laptop screen is broken
 // i'm leaving this empty space here so I can see code at the top
 package main
 
 import (
 	"os"
+	"os/exec"
+	//"os/exec"
 	"context"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/gdamore/tcell/v2"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal"
-	//"github.com/mdp/qrterminal/v3"
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/store/sqlstore"
-	waLog "go.mau.fi/whatsmeow/util/log"
-	"go.mau.fi/whatsmeow/types"
-	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
+	"go.mau.fi/whatsmeow"
+
+	//"go.mau.fi/whatsmeow/appstate"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
-	"google.golang.org/protobuf/proto"
+	"go.mau.fi/whatsmeow/store"
+	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	waLog "go.mau.fi/whatsmeow/util/log"
+	"google.golang.org/protobuf/proto"
 )
 
 var log waLog.Logger
@@ -35,6 +35,9 @@ type UserMessage struct {
 }
 
 func WAConnect() (*whatsmeow.Client, error) {
+	store.DeviceProps.RequireFullSync = proto.Bool(true)
+	fmt.Println(store.DeviceProps.Os)
+	fmt.Println(store.DeviceProps.GetRequireFullSync())
 	container, err := sqlstore.New("sqlite3", "file:wapp.db?_foreign_keys=on", waLog.Noop)
 	if err != nil {
 		return nil, err
@@ -43,6 +46,7 @@ func WAConnect() (*whatsmeow.Client, error) {
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println(container.GetAllDevices())
 	client := whatsmeow.NewClient(deviceStore, waLog.Noop)
 	if client.Store.ID == nil {
 		qrChan, _ := client.GetQRChannel(context.Background())
@@ -87,7 +91,7 @@ func parseJID(arg string) (types.JID, bool) {
 
 func main() {
 	// map holding the JID with an array of messages
-	var database = make(map[types.JID][]UserMessage)
+	var newDb = make(map[types.JID][]events.Message)
 	// map holding the JID with the username
 	var name_map = make(map[types.JID]types.ContactInfo)
 
@@ -96,9 +100,9 @@ func main() {
 	// putting my test number for now
 	cli, err := WAConnect()
 	if err != nil {
-		fmt.Println(err)
 		return
 	}
+	//myJID := cli.Store.ID
 
 	// Getting all the groups and contacts
 	groups, err := cli.GetJoinedGroups()
@@ -121,7 +125,8 @@ func main() {
 	list.SetCell(0, 0, tview.NewTableCell("Connected"))
 	for k, v := range users {
 		if v.PushName != "" {
-			list.SetCell(usr_row, 0, tview.NewTableCell(v.PushName))
+			list.SetCell(usr_row, 0, tview.NewTableCell(v.FullName))
+			list.SetCell(usr_row, 1, tview.NewTableCell(v.PushName))
 			list.SetCell(usr_row, 3, tview.NewTableCell(k.User))
 			list.SetCell(usr_row, 4, tview.NewTableCell(k.String()))
 			usr_row++
@@ -153,8 +158,15 @@ func main() {
 	right.AddItem(box, 0, 15, false)
 	right.AddItem(text, 0, 1, false)
 
+	logs := tview.NewTextArea()
+	logs.SetText("fuckkk", true)
+
 	body := tview.NewFlex().SetDirection(tview.FlexColumn)
 	body.AddItem(left, 0, 1, true).AddItem(right, 0, 3, false)
+
+	pages := tview.NewPages()
+	pages.AddPage("WhatsGo", body, true, true)
+	pages.AddPage("Logs", logs, true, false)
 
 	// When contact is selected
 	new_select := func(jid string) {
@@ -163,11 +175,11 @@ func main() {
 		if ok {
 			box.SetTitle("Connected: " + jid)
 		}
-		db_check, d_ok := database[recipient]
+		db_check, d_ok := newDb[recipient]
 		name_check, n_ok := name_map[recipient]
 		// check if user is already in db
 		if !d_ok && !n_ok && db_check == nil && name_check.Found == false {
-			database[recipient] = []UserMessage{}
+			newDb[recipient] = []events.Message{}
 			name_map[recipient], err = cli.Store.Contacts.GetContact(recipient)
 		}
 		box.Clear()
@@ -192,54 +204,64 @@ func main() {
 		}
 	}
 
+	render_messages := func() {
+		for i, s := range newDb[recipient] {
+			// Check if message is from me
+			if s.Info.MessageSource.IsFromMe {
+				box.SetCell(i, 0, tview.NewTableCell("Me" + ": "))
+			} else {
+				box.SetCell(i, 0, tview.NewTableCell(s.Info.PushName + ": "))
+			}
+			// Check message type and act accordingly
+			if s.Info.MediaType == "" {
+				box.SetCell(i, 1, tview.NewTableCell(s.Message.GetConversation()))
+			} else if s.Info.MediaType == "image" {
+				result_message := "IMAGE MESSAGE"
+				img := s.Message.GetImageMessage()
+				data, err := cli.Download(img)
+				logs.SetText(string(data), true)
+				if err != nil {
+					result_message = "IMAGE LOAD ERROR"
+				}
+				box.SetCell(i, 1, tview.NewTableCell(result_message))
+			} else if s.Info.MediaType == "sticker" {
+				result_message := "STICKER MESSAGE"
+				img := s.Message.GetStickerMessage()
+				data, err := cli.Download(img)
+				logs.SetText(string(data), true)
+				if err != nil {
+					result_message = "STICKER LOAD ERROR"
+				}
+				box.SetCell(i, 1, tview.NewTableCell(result_message))
+			}
+		}
+	}
+
 	// handlers
 	msg := ""
 	handler := func(rawEvt interface{}) {
 		switch evt := rawEvt.(type) {
+			case *events.HistorySync:
+				logs.SetBorder(true)
 			case *events.Message:
-				if evt.Info.Sender == recipient {
-					var incoming_msg string
-					img := evt.Message.GetImageMessage()
-					sticker := evt.Message.GetStickerMessage()
-					if img != nil {
-						// if the incoming message is an image
-						incoming_msg = "Image Message"
-					} else if sticker != nil {
-						// if sticker
-						incoming_msg = "Sticker Message"
-					} else {
-						incoming_msg = evt.Message.GetConversation()
-					}
-					database[recipient] = append(database[recipient], UserMessage{name_map[recipient].PushName, incoming_msg})
-					for i, s := range database[recipient] {
-						box.SetCell(i, 0, tview.NewTableCell(s.name + ": "))
-						box.SetCell(i, 1, tview.NewTableCell(s.text))
-					}
-					app.Draw()
-				} else if evt.Info.Sender != recipient {
+				if evt.Info.Sender == recipient || evt.Info.IsFromMe {
+					newDb[recipient] = append(newDb[recipient], *evt)
+					render_messages()
+				} else {
 					// if the message is not from the selected user
 					// then we need to add it to the database
 					// and update the list
 					// Add user if not in db
-					if val, ok := database[evt.Info.Sender]; ok {
-						database[evt.Info.Sender] = append(val, UserMessage{name_map[recipient].PushName, evt.Message.GetConversation()})
+					if val, ok := newDb[evt.Info.Sender]; ok {
+						newDb[evt.Info.Sender] = append(val, *evt)
 					} else {
-						database[evt.Info.Sender] = []UserMessage{{name_map[recipient].PushName, evt.Message.GetConversation()}}
+						newDb[evt.Info.Sender] = []events.Message{*evt}
 						name_map[evt.Info.Sender], err = cli.Store.Contacts.GetContact(evt.Info.Sender)
 					}
-				} else if evt.Info.MessageSource.IsFromMe {
-					database[recipient] = append(database[recipient], UserMessage{"me", evt.Message.GetConversation()})
-					for i, s := range database[recipient] {
-						box.SetCell(i, 0, tview.NewTableCell(s.name +	": "))
-						box.SetCell(i, 1, tview.NewTableCell(s.text))
-					}
-					app.Draw()
 				}
+				app.Draw()
 			case *events.Receipt:
-				for i, s := range database[recipient] {
-					box.SetCell(i, 0, tview.NewTableCell(s.name + ": "))
-					box.SetCell(i, 1, tview.NewTableCell(s.text))
-				}
+				render_messages()
 				if evt.Type == events.ReceiptTypeDelivered {
 					box.SetTitle("Delivered")
 				} else if evt.Type == events.ReceiptTypeRead {
@@ -247,13 +269,11 @@ func main() {
 				} else if evt.MessageSource.IsFromMe {
 				}
 				app.Draw()
-			case *events.HistorySync:
-				box.SetTitle("History Sync")
 		}
 	}
 
 	cli.AddEventHandler(handler)
-	// Ignore this too I might need it later
+	// Ignore this I might need it later
 	time.Sleep(0 * time.Millisecond)
 
 	// Input captures
@@ -265,6 +285,7 @@ func main() {
 			row, col := list.GetSelection()
 			list.GetCell(row, col).SetTextColor(tcell.ColorGreen)
 			new_select(list.GetCell(row, 4).Text)
+			render_messages()
 		}
 		return event
 	})
@@ -288,9 +309,13 @@ func main() {
 		if event.Key() == tcell.KeyEnter && text.GetText() != "" {
 			msg = text.GetText()
 			text.SetText("")
-			database[recipient] = append(database[recipient], UserMessage{"Me", msg})
+			// Build a new message
+			newMsg := events.Message{}
+			newMsg.Message = &waProto.Message{Conversation: proto.String(msg)}
+			newMsg.Info.MessageSource.IsFromMe = true
+			newDb[recipient] = append(newDb[recipient], newMsg)
 			// u/darkhz told me I should use a goroutine for this.. No idea what that is...
-			cli.SendMessage(context.Background()	, recipient, "", &waProto.Message{Conversation: proto.String(msg)})
+			cli.SendMessage(context.Background()	, recipient, "", newMsg.Message)
 			msg = ""
 		} else if event.Key() == tcell.KeyTab {
 			app.SetFocus(filter_input)
@@ -298,7 +323,22 @@ func main() {
 		return event
 	})
 
-	if err := app.SetRoot(body, true).Run(); err != nil {
+	logs.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEsc {
+			pages.HidePage("Logs")
+		}
+		return event
+	})
+
+	body.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyEsc {
+			pages.ShowPage("Logs")
+		}
+		return event
+	})
+
+
+	if err := app.SetRoot(pages, true).Run(); err != nil {
 		panic(err)
 	}
 
