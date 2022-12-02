@@ -9,7 +9,7 @@ import (
 	"os"
 	//"strconv"
 	"strings"
-	"time"
+	//"time"
 
 	"github.com/gdamore/tcell/v2"
 	_ "github.com/mattn/go-sqlite3"
@@ -174,15 +174,16 @@ func main() {
 
 	// Left side of screen - Contacts, Groups, Filter input
 	left := tview.NewFlex().SetDirection(tview.FlexRow)
-	left.AddItem(list, 0, 20, false)
+	left.AddItem(list, 0, 15, false)
 	left.AddItem(filter_input, 0, 1, true)
 
 	// Right side of screen - Messages, Input
 	right := tview.NewFlex().SetDirection(tview.FlexRow)
 	right.AddItem(header, 0, 1, false)
-	right.AddItem(box, 0, 15, false)
+	right.AddItem(box, 0, 10, false)
 	right.AddItem(text, 0, 1, false)
 
+	// Error logs
 	logText := tview.NewTextArea()
 	logText.SetBorder(true)
 	logText.SetBorderColor(tcell.ColorRed).SetTitle("Error logs for debugging")
@@ -190,6 +191,7 @@ func main() {
 	logs.AddItem(header, 0, 1, false)
 	logs.AddItem(logText, 0, 15, true)
 
+	// The main body
 	body := tview.NewFlex().SetDirection(tview.FlexColumn)
 	body.AddItem(left, 0, 1, true).AddItem(right, 0, 3, false)
 
@@ -219,10 +221,12 @@ func main() {
 			newDb[recipient] = []events.Message{}
 			name_map[recipient], err = cli.Store.Contacts.GetContact(recipient)
 		} else {
-			box.SetTitle(name_map[recipient].PushName)
+			name, _ := cli.Store.Contacts.GetContact(rec)
+			box.SetTitle(name.PushName)
 		}
 		box.Clear()
 	}
+
 	// Filtering
 	filter := func(text string) {
 		list.Clear()
@@ -245,6 +249,7 @@ func main() {
 		for k, v := range filtered {
 			if v.PushName != "" {
 				list.SetCell(usr_row, 0, tview.NewTableCell(v.PushName))
+				list.SetCell(usr_row, 1, tview.NewTableCell(v.FullName))
 				list.SetCell(usr_row, 3, tview.NewTableCell(k.User))
 				list.SetCell(usr_row, 4, tview.NewTableCell(k.String()))
 				usr_row++
@@ -282,11 +287,19 @@ func main() {
 				// Check if message is a reply
 				field := s.Message.ExtendedTextMessage
 				if field != nil {
-					setCell(i, ("\"" + *field.ContextInfo.QuotedMessage.Conversation + "\"" + " <- " + *field.Text))
+					// Message is replying to a text message
+					if field.ContextInfo.QuotedMessage.Conversation != nil {
+						setCell(i, ("\"" + *field.ContextInfo.QuotedMessage.Conversation + "\"" + " <- " + *field.Text))
+					} else {
+					// Message is replying to a media message
+						setCell(i, ("\"" + "UNKNOWN TYPE" + "\"" + " <- " + *field.Text))
+					}
 				} else {
+				// Message is a normal text message
 					setCell(i, s.Message.GetConversation())
 				}
 			} else if s.Info.MediaType == "image" {
+				// Message is an image
 				result_message := "IMAGE MESSAGE"
 				img := s.Message.GetImageMessage()
 				_, err := cli.Download(img)
@@ -295,6 +308,7 @@ func main() {
 				}
 				setCell(i, result_message)
 			} else if s.Info.MediaType == "sticker" {
+				// Message is a sticker
 				result_message := "STICKER MESSAGE"
 				img := s.Message.GetStickerMessage()
 				_, err := cli.Download(img)
@@ -303,18 +317,22 @@ func main() {
 				}
 				setCell(i, result_message)
 			} else {
+				// Message is an unknown type
 				logText.SetText("Unknown message type: "+s.Info.MediaType, true)
 			}
+			// Put the message id in column 100
 			box.SetCell(i, 100, tview.NewTableCell(s.Info.ID))
 		}
 	}
 
-	// handlers
 	msg := ""
+	// handlers
 	handler := func(rawEvt interface{}) {
 		switch evt := rawEvt.(type) {
+			// History Sync event
 			case *events.HistorySync:
 				logs.SetBorder(false)
+			// Incoming message
 			case *events.Message:
 				if val, ok := newDb[evt.Info.Chat]; ok {
 					newDb[evt.Info.Chat] = append(val, *evt)
@@ -324,6 +342,7 @@ func main() {
 				render_messages()
 				exportDb()
 				app.Draw()
+			// Contact update
 			case *events.Receipt:
 				render_messages()
 				exportDb()
@@ -338,17 +357,15 @@ func main() {
 	}
 
 	cli.AddEventHandler(handler)
-	// Ignore this I might need it later
-	time.Sleep(0 * time.Millisecond)
 
 	// Input handlers
 	list.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyTab {
 			app.SetFocus(pagesBtn)
-			commands.SetText("Enter")
+			commands.SetText("Ctrl+Underscore, Enter")
 		} else if event.Key() == tcell.KeyEnter {
 			app.SetFocus(text)
-			commands.SetText("Enter, Tab")
+			commands.SetText("Ctrl+Underscore, Enter, Tab")
 			row, col := list.GetSelection()
 			list.GetCell(row, col).SetTextColor(tcell.ColorGreen)
 			new_select(list.GetCell(row, 4).Text)
@@ -360,8 +377,9 @@ func main() {
 	pagesBtn.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyTab {
 			app.SetFocus(box)
-			commands.SetText("Tab")
+			commands.SetText("Ctrl+Underscore, Tab, Enter")
 		} else if event.Key() == tcell.KeyEnter {
+			commands.SetText("Ctrl+Underscore, Enter")
 			body.AddItem(modal, 0, 0, false)
 			app.SetFocus(modal)
 		}
@@ -371,6 +389,7 @@ func main() {
 	modal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 		if buttonLabel == "Logs" {
 			pages.ShowPage("Logs")
+			commands.SetText("Esc")
 			app.SetFocus(logText)
 		} else {
 			notifs.SetText("Page not implemented yet")
@@ -382,7 +401,7 @@ func main() {
 	box.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyTab {
 			app.SetFocus(text)
-			commands.SetText("Enter, Tab")
+			commands.SetText("Ctrl+Underscore, Enter, Tab")
 		} else if event.Key() == tcell.KeyEnter {
 			// When selecting text u want to reply to
 			row, _ := box.GetSelection()
@@ -393,10 +412,8 @@ func main() {
 					msgReplyTo = &newDb[recipient][i]
 				}
 			}
-			json, _ := json.MarshalIndent(msgReplyTo, "",	"	")
-			logText.SetText(string(json), true)
 			app.SetFocus(text)
-			commands.SetText("Enter, Tab")
+			commands.SetText("Ctrl+Underscore, Enter, Tab")
 		}
 		return event
 	})
@@ -405,7 +422,7 @@ func main() {
 		filter(filter_input.GetText())
 		if event.Key() == tcell.KeyEnter || event.Key() == tcell.KeyTab {
 			app.SetFocus(list)
-			commands.SetText("Enter, Tab")
+			commands.SetText("Ctrl+Underscore, Enter, Tab")
 		}
 		return event
 	})
@@ -456,7 +473,7 @@ func main() {
 			msg = ""
 		} else if event.Key() == tcell.KeyTab {
 			app.SetFocus(filter_input)
-			commands.SetText("Enter, Tab")
+			commands.SetText("Ctrl+Underscore, Enter, Tab")
 		}
 		return event
 	})
@@ -464,6 +481,7 @@ func main() {
 	body.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlUnderscore {
 			pages.ShowPage("Logs")
+			commands.SetText("Esc")
 		}
 		return event
 	})
@@ -471,7 +489,7 @@ func main() {
 	logs.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEsc {
 			pages.HidePage("Logs")
-			commands.SetText("Enter, Tab")
+			commands.SetText("Ctrl+Underscore, Enter, Tab")
 		}
 		return event
 	})
