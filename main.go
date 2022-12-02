@@ -89,6 +89,8 @@ func parseJID(arg string) (types.JID, bool) {
 }
 
 func main() {
+	// If user selects a message to reply to, this will be set to the message ID
+	msgReplyTo := &events.Message{}
 	// map holding the JID with an array of messages
 	var newDb = make(map[types.JID][]events.Message)
 	// First read db.json file to see if there is any data
@@ -107,7 +109,6 @@ func main() {
 	if err != nil {
 		return
 	}
-	//myJID := cli.Store.ID
 
 	// Getting all the groups and contacts
 	groups, err := cli.GetJoinedGroups()
@@ -258,6 +259,10 @@ func main() {
 		}
 	}
 
+	setCell := func(r int, str string) {
+		box.SetCell(r, 1, tview.NewTableCell(str).SetMaxWidth(300).SetExpansion(1))
+	}
+
 	render_messages := func() {
 		toRender := make(map[types.JID][]events.Message)
 		for i := 50; i > 0; i-- {
@@ -277,9 +282,9 @@ func main() {
 				// Check if message is a reply
 				field := s.Message.ExtendedTextMessage
 				if field != nil {
-					box.SetCell(i, 2, tview.NewTableCell("\"" + *field.ContextInfo.QuotedMessage.Conversation + "\"" + " <- " + *field.Text))
+					setCell(i, ("\"" + *field.ContextInfo.QuotedMessage.Conversation + "\"" + " <- " + *field.Text))
 				} else {
-					box.SetCell(i, 2, tview.NewTableCell(s.Message.GetConversation()))
+					setCell(i, s.Message.GetConversation())
 				}
 			} else if s.Info.MediaType == "image" {
 				result_message := "IMAGE MESSAGE"
@@ -288,7 +293,7 @@ func main() {
 				if err != nil {
 					result_message = "IMAGE LOAD ERROR"
 				}
-				box.SetCell(i, 2, tview.NewTableCell(result_message))
+				setCell(i, result_message)
 			} else if s.Info.MediaType == "sticker" {
 				result_message := "STICKER MESSAGE"
 				img := s.Message.GetStickerMessage()
@@ -296,11 +301,11 @@ func main() {
 				if err != nil {
 					result_message = "STICKER LOAD ERROR"
 				}
-				box.SetCell(i, 2, tview.NewTableCell(result_message))
+				setCell(i, result_message)
 			} else {
 				logText.SetText("Unknown message type: "+s.Info.MediaType, true)
 			}
-			//box.SetCell(i, 100, tview.NewTableCell(s.Info.ID))
+			box.SetCell(i, 100, tview.NewTableCell(s.Info.ID))
 		}
 	}
 
@@ -378,6 +383,20 @@ func main() {
 		if event.Key() == tcell.KeyTab {
 			app.SetFocus(text)
 			commands.SetText("Enter, Tab")
+		} else if event.Key() == tcell.KeyEnter {
+			// When selecting text u want to reply to
+			row, _ := box.GetSelection()
+			replyTo := box.GetCell(row, 100).Text
+			notifs.SetText(box.GetCell(row, 100).Text)
+			for i := range newDb[recipient] {
+				if newDb[recipient][i].Info.ID == replyTo {
+					msgReplyTo = &newDb[recipient][i]
+				}
+			}
+			json, _ := json.MarshalIndent(msgReplyTo, "",	"	")
+			logText.SetText(string(json), true)
+			app.SetFocus(text)
+			commands.SetText("Enter, Tab")
 		}
 		return event
 	})
@@ -391,23 +410,60 @@ func main() {
 		return event
 	})
 
+// The following is code for sending a reply
+//				if evt.Info.Sender == recipient {
+//					newMsg := &waProto.Message{
+//						ExtendedTextMessage: &waProto.ExtendedTextMessage{
+//							Text: proto.String("A reply"),
+//							ContextInfo: &waProto.ContextInfo{
+//								StanzaId: proto.String(evt.Info.ID),
+//								Participant: proto.String(evt.Info.Sender.String()),
+//								QuotedMessage: evt.Message,
+//							},
+//						},
+//					}
+//					cli.SendMessage(context.Background(), recipient, "", newMsg)
+//				}
+
 	text.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEnter && text.GetText() != "" {
 			msg = text.GetText()
 			text.SetText("")
 			// Build a new message
 			newMsg := events.Message{}
-			newMsg.Message = &waProto.Message{
-				Conversation: proto.String(msg),
+			if msgReplyTo.Message != nil {
+				newMsg.Message = &waProto.Message{
+					ExtendedTextMessage: &waProto.ExtendedTextMessage{
+						Text: proto.String(msg),
+						ContextInfo: &waProto.ContextInfo{
+							StanzaId: proto.String(msgReplyTo.Info.ID),
+							Participant: proto.String(msgReplyTo.Info.Sender.String()),
+							QuotedMessage: msgReplyTo.Message,
+						},
+					},
+				}
+				msgReplyTo = &events.Message{}
+			} else {
+				newMsg.Message = &waProto.Message{
+					Conversation: proto.String(msg),
+				}
 			}
 			newMsg.Info.MessageSource.IsFromMe = true
 			newDb[recipient] = append(newDb[recipient], newMsg)
+
 			// u/darkhz told me I should use a goroutine for this.. No idea what that is...
 			cli.SendMessage(context.Background()	, recipient, "", newMsg.Message)
 			msg = ""
 		} else if event.Key() == tcell.KeyTab {
 			app.SetFocus(filter_input)
 			commands.SetText("Enter, Tab")
+		}
+		return event
+	})
+
+	body.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlUnderscore {
+			pages.ShowPage("Logs")
 		}
 		return event
 	})
