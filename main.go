@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
+	//"strconv"
 	"strings"
 	"time"
 
@@ -128,6 +128,8 @@ func main() {
 	list.GetMouseCapture()
 	list.SetBorder(true).SetTitle("Users")
 	list.SetCell(0, 0, tview.NewTableCell("Connected"))
+	// Initial render of the contacts
+	// Will get overwritten when searching
 	for k, v := range users {
 		if v.PushName != "" {
 			list.SetCell(usr_row, 0, tview.NewTableCell(v.FullName))
@@ -142,6 +144,22 @@ func main() {
 		list.SetCell(usr_row, 1, tview.NewTableCell(groups[i].JID.Server))
 		usr_row++
 	}
+
+	// Modal view
+	modal := tview.NewModal().SetText("Go To Page")
+	modal.AddButtons([]string{"Logs", "Settings", "Logout"})
+
+	// Header
+	notifs := tview.NewTextView().SetText("Notifications")
+	notifs.SetBorder(true)
+	commands := tview.NewTextView().SetText("Commands")
+	commands.SetBorder(true)
+	pagesBtn := tview.NewTextView()
+	pagesBtn.SetText("Pages").SetBorder(true)
+	header := tview.NewFlex().SetDirection(tview.FlexColumn)
+	header.AddItem(notifs, 0, 10, false)
+	header.AddItem(commands, 0, 10, false)
+	header.AddItem(pagesBtn, 0, 1, false)
 
 	// Filter Input
 	filter_input := tview.NewInputField().SetLabel("Search: ")
@@ -160,13 +178,16 @@ func main() {
 
 	// Right side of screen - Messages, Input
 	right := tview.NewFlex().SetDirection(tview.FlexRow)
+	right.AddItem(header, 0, 1, false)
 	right.AddItem(box, 0, 15, false)
 	right.AddItem(text, 0, 1, false)
 
-	logs := tview.NewTextArea()
-	logs.SetText("If you see this message, then no error has happened", true)
-	logs.SetBorder(true).SetTitle("Error Logs For Debugging")
-	logs.SetBorderColor(tcell.ColorRed)
+	logText := tview.NewTextArea()
+	logText.SetBorder(true)
+	logText.SetBorderColor(tcell.ColorRed).SetTitle("Error logs for debugging")
+	logs := tview.NewFlex().SetDirection(tview.FlexRow)
+	logs.AddItem(header, 0, 1, false)
+	logs.AddItem(logText, 0, 15, true)
 
 	body := tview.NewFlex().SetDirection(tview.FlexColumn)
 	body.AddItem(left, 0, 1, true).AddItem(right, 0, 3, false)
@@ -179,7 +200,7 @@ func main() {
 	exportDb := func() {
 		jsonType, err := json.MarshalIndent(newDb, "", "	")
 		if err != nil {
-			logs.SetText("Error marshalling json: "+err.Error(), true)
+			logText.SetText("Error marshalling json: "+err.Error(), true)
 		} else {
 			os.WriteFile("db.json", jsonType, 0644)
 		}
@@ -189,15 +210,15 @@ func main() {
 	new_select := func(jid string) {
 		rec, ok := parseJID(jid)
 		recipient = rec
-		if ok {
-			box.SetTitle("Connected: " + jid)
-		}
+		if ok {}
 		db_check, d_ok := newDb[recipient]
 		name_check, n_ok := name_map[recipient]
 		// check if user is already in db
 		if !d_ok && !n_ok && db_check == nil && name_check.Found == false {
 			newDb[recipient] = []events.Message{}
 			name_map[recipient], err = cli.Store.Contacts.GetContact(recipient)
+		} else {
+			box.SetTitle(name_map[recipient].PushName)
 		}
 		box.Clear()
 	}
@@ -243,7 +264,6 @@ func main() {
 			if len(newDb[recipient]) > i {
 				toRender[recipient] = append(toRender[recipient], newDb[recipient][len(newDb[recipient])-i])
 			}
-			logs.SetText(logs.GetText() + strconv.Itoa(i), true)
 		}
 		for i, s := range toRender[recipient] {
 			// Check if message is from me
@@ -252,10 +272,15 @@ func main() {
 			} else {
 				box.SetCell(i, 0, tview.NewTableCell(s.Info.PushName + ": "))
 			}
-			// Check if message is a reply
 			// Check message type and act accordingly
 			if s.Info.MediaType == "" {
-				box.SetCell(i, 2, tview.NewTableCell(s.Message.GetConversation()))
+				// Check if message is a reply
+				field := s.Message.ExtendedTextMessage
+				if field != nil {
+					box.SetCell(i, 2, tview.NewTableCell("\"" + *field.ContextInfo.QuotedMessage.Conversation + "\"" + " <- " + *field.Text))
+				} else {
+					box.SetCell(i, 2, tview.NewTableCell(s.Message.GetConversation()))
+				}
 			} else if s.Info.MediaType == "image" {
 				result_message := "IMAGE MESSAGE"
 				img := s.Message.GetImageMessage()
@@ -273,7 +298,7 @@ func main() {
 				}
 				box.SetCell(i, 2, tview.NewTableCell(result_message))
 			} else {
-				logs.SetText("Unknown message type: "+s.Info.MediaType, true)
+				logText.SetText("Unknown message type: "+s.Info.MediaType, true)
 			}
 			//box.SetCell(i, 100, tview.NewTableCell(s.Info.ID))
 		}
@@ -298,9 +323,9 @@ func main() {
 				render_messages()
 				exportDb()
 				if evt.Type == events.ReceiptTypeDelivered {
-					box.SetTitle("Delivered")
+					notifs.SetText("Delivered to " + evt.Chat.User)
 				} else if evt.Type == events.ReceiptTypeRead {
-					box.SetTitle("Read")
+					notifs.SetText("Read by " + evt.Chat.User)
 				} else if evt.MessageSource.IsFromMe {
 				}
 				app.Draw()
@@ -311,12 +336,14 @@ func main() {
 	// Ignore this I might need it later
 	time.Sleep(0 * time.Millisecond)
 
-	// Input captures
+	// Input handlers
 	list.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyTab {
-			app.SetFocus(box)
+			app.SetFocus(pagesBtn)
+			commands.SetText("Enter")
 		} else if event.Key() == tcell.KeyEnter {
 			app.SetFocus(text)
+			commands.SetText("Enter, Tab")
 			row, col := list.GetSelection()
 			list.GetCell(row, col).SetTextColor(tcell.ColorGreen)
 			new_select(list.GetCell(row, 4).Text)
@@ -325,9 +352,32 @@ func main() {
 		return event
 	})
 
+	pagesBtn.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyTab {
+			app.SetFocus(box)
+			commands.SetText("Tab")
+		} else if event.Key() == tcell.KeyEnter {
+			body.AddItem(modal, 0, 0, false)
+			app.SetFocus(modal)
+		}
+		return event
+	})
+
+	modal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+		if buttonLabel == "Logs" {
+			pages.ShowPage("Logs")
+			app.SetFocus(logText)
+		} else {
+			notifs.SetText("Page not implemented yet")
+			app.SetFocus(text)
+		}
+		body.RemoveItem(modal)
+	})
+
 	box.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyTab {
 			app.SetFocus(text)
+			commands.SetText("Enter, Tab")
 		}
 		return event
 	})
@@ -336,6 +386,7 @@ func main() {
 		filter(filter_input.GetText())
 		if event.Key() == tcell.KeyEnter || event.Key() == tcell.KeyTab {
 			app.SetFocus(list)
+			commands.SetText("Enter, Tab")
 		}
 		return event
 	})
@@ -356,6 +407,7 @@ func main() {
 			msg = ""
 		} else if event.Key() == tcell.KeyTab {
 			app.SetFocus(filter_input)
+			commands.SetText("Enter, Tab")
 		}
 		return event
 	})
@@ -363,17 +415,10 @@ func main() {
 	logs.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEsc {
 			pages.HidePage("Logs")
+			commands.SetText("Enter, Tab")
 		}
 		return event
 	})
-
-	body.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyEsc {
-			pages.ShowPage("Logs")
-		}
-		return event
-	})
-
 
 	if err := app.SetRoot(pages, true).Run(); err != nil {
 		panic(err)
