@@ -11,7 +11,7 @@
 ### Current goals
 * Get the message history of a contact (REALLY need help with this)
 * View image messages in the terminal (sixel ??)
-* Send message in a group
+* Send message in a group (done)
 * Send image message
 
 ### Requirements
