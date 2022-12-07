@@ -172,6 +172,11 @@ func main() {
 	text.SetBorder(true)
 	text.SetFieldBackgroundColor(tview.Styles.PrimitiveBackgroundColor)
 
+	// Multi line text input
+	mtext := tview.NewTextArea()
+	mtext.SetBorder(true)
+	mtext.SetTitle("Multi line mode")
+
 	// Left side of screen - Contacts, Groups, Filter input
 	left := tview.NewFlex().SetDirection(tview.FlexRow)
 	left.AddItem(list, 0, 15, false)
@@ -391,9 +396,11 @@ func main() {
 			pages.ShowPage("Logs")
 			commands.SetText("Esc")
 			app.SetFocus(logText)
-		} else {
+		} else if buttonLabel == "Settings" {
 			notifs.SetText("Page not implemented yet")
 			app.SetFocus(text)
+		} else if buttonLabel == "Logout" {
+			cli.Logout()
 		}
 		body.RemoveItem(modal)
 	})
@@ -427,21 +434,6 @@ func main() {
 		return event
 	})
 
-// The following is code for sending a reply
-//				if evt.Info.Sender == recipient {
-//					newMsg := &waProto.Message{
-//						ExtendedTextMessage: &waProto.ExtendedTextMessage{
-//							Text: proto.String("A reply"),
-//							ContextInfo: &waProto.ContextInfo{
-//								StanzaId: proto.String(evt.Info.ID),
-//								Participant: proto.String(evt.Info.Sender.String()),
-//								QuotedMessage: evt.Message,
-//							},
-//						},
-//					}
-//					cli.SendMessage(context.Background(), recipient, "", newMsg)
-//				}
-
 	text.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEnter && text.GetText() != "" {
 			msg = text.GetText()
@@ -467,13 +459,55 @@ func main() {
 			}
 			newMsg.Info.MessageSource.IsFromMe = true
 			newDb[recipient] = append(newDb[recipient], newMsg)
-
 			// u/darkhz told me I should use a goroutine for this.. No idea what that is...
 			cli.SendMessage(context.Background()	, recipient, "", newMsg.Message)
 			msg = ""
 		} else if event.Key() == tcell.KeyTab {
 			app.SetFocus(filter_input)
 			commands.SetText("Ctrl+Underscore, Enter, Tab")
+		} else if event.Key() == tcell.KeyCtrlS {
+			right.RemoveItem(text)
+			right.AddItem(mtext, 0, 1, false)
+			app.SetFocus(mtext)
+		}
+		return event
+	})
+
+	mtext.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlSpace && mtext.GetText() != "" {
+			msg = mtext.GetText()
+			mtext.SetText("", true)
+			// Build a new message
+			newMsg := events.Message{}
+			if msgReplyTo.Message != nil {
+				newMsg.Message = &waProto.Message{
+					ExtendedTextMessage: &waProto.ExtendedTextMessage{
+						Text: proto.String(msg),
+						ContextInfo: &waProto.ContextInfo{
+							StanzaId: proto.String(msgReplyTo.Info.ID),
+							Participant: proto.String(msgReplyTo.Info.Sender.String()),
+							QuotedMessage: msgReplyTo.Message,
+						},
+					},
+				}
+				msgReplyTo = &events.Message{}
+			} else {
+				newMsg.Message = &waProto.Message{
+					Conversation: proto.String(msg),
+				}
+			}
+			newMsg.Info.MessageSource.IsFromMe = true
+			newDb[recipient] = append(newDb[recipient], newMsg)
+			// u/darkhz told me I should use a goroutine for this.. No idea what that is...
+			cli.SendMessage(context.Background()	, recipient, "", newMsg.Message)
+			msg = ""
+		} else if event.Key() == tcell.KeyTab {
+			app.SetFocus(filter_input)
+			commands.SetText("Ctrl+Underscore, Enter, Tab")
+		} else if event.Key() == tcell.KeyCtrlS {
+			right.RemoveItem(mtext)
+			right.AddItem(text, 0, 1, false)
+			app.SetFocus(text)
 		}
 		return event
 	})
