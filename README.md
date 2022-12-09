@@ -22,7 +22,7 @@
 #### Clone and run
 
 ```
-git clone https://github.com/WinterSunset/WhatsGo
+git clone https://github.com/WinterSunset95/WhatsGo
 ``` 
 
 ```
