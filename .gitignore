@@ -3,3 +3,4 @@
 *.json
 go.sum
 go.mod
+sticker*
