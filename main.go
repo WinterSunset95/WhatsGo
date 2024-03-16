@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	_ "strings"
 
 	"encoding/json"
 	"fmt"
@@ -194,6 +193,9 @@ func main() {
 		}
 
 		return event
+	})
+	messageList.SetSelectedFunc(func(index int, userName string, content string, shortcut rune) {
+		viewImage(content, debugPage)
 	})
 
 	// This one can double as both the debug page and a multi-line input for sending long messages
