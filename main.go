@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"encoding/json"
 	"fmt"
@@ -94,7 +96,7 @@ func main() {
 	}
 
 	////////////////////////////////////////
-	/// Constant that must not change //////
+	//// Constants that must not change ////
 	////////////////////////////////////////
 	fullListOfContacts, err := cli.Store.Contacts.GetAllContacts();
 	if err != nil {
@@ -109,7 +111,8 @@ func main() {
 	////////////////////////////////////////
 
 	contacts := listOfContacts("", fullListOfContacts, fullListOfGroups);
-	app, contactsList, messageList, searchInput, messageInputField, debugPage, pages := drawApp();
+	app, contactsList, messageList, searchInput, messageInputField, debugPage, pages, notificationsBox, miscActions := drawApp();
+	_ = miscActions;
 	putContactsOnList(contacts, contactsList)
 
 	////////////////////////////////////////
@@ -131,10 +134,13 @@ func main() {
 				IsFromMe: true,
 			}
 
+			currentTime := time.Now();
 			messageData := MessageData{
 				Info: types.MessageInfo{
 					MessageSource: messageInfo,
 					PushName: cli.Store.PushName,
+					Timestamp: currentTime,
+					Type: "text",
 				},
 				Message: waProto.Message{Conversation: proto.String(text)}}
 			textToSend := &waProto.Message{
@@ -148,6 +154,8 @@ func main() {
 			messageInputField.SetText("");
 		}
 
+
+		scrollToBottom(messageList)
 		return event;
 	})
 
@@ -183,6 +191,8 @@ func main() {
 
 		messageList.SetTitle(" " + userName + " ");
 		app.SetFocus(messageInputField);
+
+		scrollToBottom(messageList)
 	})
 
 
@@ -192,7 +202,9 @@ func main() {
 			app.SetFocus(messageInputField)
 		}
 
-		return event
+		// We want to scroll to the bottom always
+		endKeyEvent := tcell.NewEventKey(tcell.KeyEnd, 0, tcell.ModNone)
+		return endKeyEvent;
 	})
 	messageList.SetSelectedFunc(func(index int, userName string, content string, shortcut rune) {
 		viewImage(content, debugPage)
@@ -221,16 +233,22 @@ func main() {
 				break
 
 			case *events.Message:
+				// We don't want to handle the status messages
 				jid, _ := types.ParseJID("status@broadcast");
 				if evt.Info.Chat == jid {
 					break
 				}
 
+				// Notify for new messages
+				userName := evt.Info.PushName;
+				notificationsBox.SetText(userName + " Sent a message");
+
+				// Prepare the message data
+				// We need to add the message to the database
 				info := evt.Info;
 				message := evt.Message;
 				messageData := MessageData{Info: info, Message: *message};
 				chatId := evt.Info.Chat;
-
 				database[chatId] = append(database[chatId], messageData);
 				pushToDatabase(database)
 				if chatId == currentChat {
@@ -239,11 +257,37 @@ func main() {
 
 				break
 
+			case *events.Receipt:
+				// Get the jid
+				userJid := evt.Chat;
+				// Get the name by searching through the contacts map
+				userName := "Unknown";
+				if val, ok := contacts[userJid]; ok {
+					userName = val.FullName;
+				}
+
+				// Get the type of the event
+				// sender, Delivered, TypeRead
+				evtType := evt.Type.GoString();
+				if strings.Contains(evtType, "sender") {
+					evtType = "Sent";
+					notificationsBox.SetText("Sent to " + userName);
+				} else if strings.Contains(evtType, "Delivered") {
+					evtType = "Delivered";
+					notificationsBox.SetText("Delivered to " + userName);
+				} else if strings.Contains(evtType, "Read") {
+					evtType = "Read";
+					notificationsBox.SetText("Read by " + userName);
+				}
+				messageList.SetTitle(userName + "(" + evtType + ")");
+				break;
+
 			default:
 				_ = evt
 				break
-
 		}
+
+		app.Draw();
 	})
 
 

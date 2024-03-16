@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"go.mau.fi/whatsmeow/types"
 )
@@ -49,8 +50,8 @@ func putContactsOnList(contacts map[types.JID]types.ContactInfo, list *tview.Lis
 func putMessagesToList(database Database, jid types.JID, list *tview.List) {
 	currList := database[jid];
 
-	if len(database[jid]) > 18 {
-		currList = database[jid][len(database[jid])-18:];
+	if len(database[jid]) > 100 {
+		currList = database[jid][len(database[jid])-100:];
 	}
 
 	list.Clear()
@@ -119,6 +120,11 @@ func putMessagesToList(database Database, jid types.JID, list *tview.List) {
 			list.AddItem(mainText, "Unknown message type", 0, nil);
 		}
 	}
+}
+
+func scrollToBottom(list *tview.List) {
+		endKeyEvent := tcell.NewEventKey(tcell.KeyEnd, 0, tcell.ModNone)
+		list.InputHandler()(endKeyEvent, nil);
 }
 
 func pushToDatabase(db Database) {

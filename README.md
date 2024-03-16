@@ -1,18 +1,13 @@
 
-
-
-
-
-
 # WhatsGo
 * A command line whatsapp client
-<img src="whatsgo.png" alt="">
+![whatsgo](./whatsgo.png)
 
 ### Current goals
-* Get the message history of a contact (REALLY need help with this)
-* View image messages in the terminal (sixel ??)
+* View image messages in the terminal (need help decrypting whatsapp's image encryption)
+* Search for contacts (done)
+* Recieve read, sent and delivered status (done)
 * Send message in a group (done)
-* Send image message
 
 ### Requirements
 * Golang
