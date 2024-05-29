@@ -35,7 +35,8 @@ func listOfContacts(searchString string, fullList map[types.JID]types.ContactInf
 	// If we have a search string, we filter out the contacts which don't match the search string
 	if searchString != "" {
 		for jid, contact := range contactsList {
-			if !strings.Contains(contact.FullName, searchString) && !strings.Contains(jid.String(), searchString) {
+			// case insensitive search
+			if !strings.Contains(strings.ToLower(contact.FullName), strings.ToLower(searchString)) && !strings.Contains(strings.ToLower(jid.String()), strings.ToLower(searchString)) {
 				delete(contactsList, jid)
 			}
 		}
