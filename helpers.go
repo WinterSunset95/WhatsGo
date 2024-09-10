@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
@@ -13,10 +14,24 @@ import (
 )
 
 func viewImage(content string) {
-	// Firstly lets check if it is an image
-	// Image messages will always start with image- and end with .jpg
-	fehExec := exec.Command("feh", "./media/" + content)
-	fehExec.Start()
+	// Image messages will always start with image- and end with .jpg, they are in the media folder
+	// Sticker messages will always start with sticker- and end with .webp, they are in the sticker folder
+	// Video messages will always start with video- and end with .mp4, they are in the media folder
+	// If it is not any of these, then it is an unknown message type
+	
+	if strings.HasPrefix(content, "image-") && strings.HasSuffix(content, ".jpeg") {
+		fehExec := exec.Command("feh", "./media/" + content)
+		fehExec.Start()
+	} else if strings.HasPrefix(content, "sticker-") && strings.HasSuffix(content, ".webp") {
+		fehExec := exec.Command("feh", "./sticker/" + content)
+		fehExec.Start()
+	} else if strings.HasPrefix(content, "video-") && strings.HasSuffix(content, ".mp4") {
+		mpvExec := exec.Command("mpv", "./media/" + content)
+		mpvExec.Start()
+	} else {
+		// Unknown message type
+		// Do nothing
+	}
 }
 
 func putContactsOnList(contacts map[types.JID]types.ContactInfo, list *tview.List) {
@@ -48,36 +63,74 @@ func putMessagesToList(cli *whatsmeow.Client, database Database, jid types.JID, 
 			list.AddItem(mainText, *messageData.Message.ExtendedTextMessage.Text, 0, nil);
 		} else if messageData.Info.Type == "media" {
 			// Media files handler
+			
 			// Name the file
-			fileName := "image-" + messageData.Info.ID + ".jpeg";
+			var fileName string;
+			var folderName string;
+			if messageData.Message.ImageMessage != nil {
+				fileName = "image-" + messageData.Info.ID + ".jpeg";
+				folderName = "media";
+			} else if messageData.Message.StickerMessage != nil {
+				fileName = "sticker-" + messageData.Info.ID + ".webp";
+				folderName = "sticker";
+			} else if messageData.Message.VideoMessage != nil {
+				fileName = "video-" + messageData.Info.ID + ".mp4";
+				folderName = "media";
+			} else {
+				fileName = "unknown-" + messageData.Info.ID + ".unknown";
+				folderName = "unknown";
+			}
 			// Check if folder exists
-			_, folderErr := os.Stat("./media")
+			_, folderErr := os.Stat(folderName)
 			if folderErr != nil {
 				// Make new folder
-				os.Mkdir("media", fs.ModePerm)
+				os.Mkdir(folderName, fs.ModePerm)
 			}
 			// Check if the file already exists
-			_, fileErr := os.Stat("./media/" + fileName)
+			fullPath := "./" + folderName + "/" + fileName;
+			_, fileErr := os.Stat(fullPath)
 			if fileErr != nil {
-				// File does not exist
-				// Download the image
-				imageByte, err := cli.Download(messageData.Message.GetImageMessage())
-				if (err != nil) {
-					list.AddItem(mainText, "Error downloading image", 0, nil);
-					continue;
-				}
-
-				// save the bytearray to a file
-				os.WriteFile("./media/" + fileName, imageByte, 0644)
+				//////////////////////////////////////
+				// File does not exist? Download it //
+				//////////////////////////////////////
+				go backgroundDownloader(cli, list, fullPath, mainText, messageData)
 			}
 
 			// Add the image to the list
 			list.AddItem(mainText, fileName, 0, nil);
-
 		} else {
 			list.AddItem(mainText, "Unknown message type", 0, nil);
 		}
 	}
+}
+
+func backgroundDownloader(cli *whatsmeow.Client, list *tview.List, fullPath string, mainText string, messageData MessageData) {
+	/////////////////////////////////////////////
+	////// Handle Image, Sticker and Video //////
+	/////////////////////////////////////////////
+	if messageData.Message.ImageMessage != nil {
+		imageByte, err := cli.Download(messageData.Message.GetImageMessage())
+		if (err != nil) {
+			list.AddItem(mainText, "Error downloading image", 0, nil);
+		}
+		// save the bytearray to a file
+		os.WriteFile(fullPath, imageByte, 0644)
+	} else if messageData.Message.StickerMessage != nil {
+		stickerByte, err := cli.Download(messageData.Message.GetStickerMessage())
+		if (err != nil) {
+			list.AddItem(mainText, "Error downloading sticker", 0, nil);
+		}
+		// save the bytearray to a file
+		os.WriteFile(fullPath, stickerByte, 0644)
+	} else if messageData.Message.VideoMessage != nil {
+		videoByte, err := cli.Download(messageData.Message.GetVideoMessage())
+		if (err != nil) {
+			list.AddItem(mainText, "Error downloading video", 0, nil);
+		}
+		// save the bytearray to a file
+		os.WriteFile(fullPath, videoByte, 0644)
+	}
+
 }
 
 func scrollToBottom(list *tview.List) {

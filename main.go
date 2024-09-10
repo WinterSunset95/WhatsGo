@@ -280,7 +280,9 @@ func main() {
 					evtType = "Read";
 					notificationsBox.SetText("Read by " + userName);
 				}
-				messageList.SetTitle(userName + "(" + evtType + ")");
+				if userJid == currentChat {
+					messageList.SetTitle(userName + "(" + evtType + ")");
+				}
 				break;
 
 			default:

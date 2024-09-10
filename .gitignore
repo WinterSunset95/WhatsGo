@@ -4,4 +4,6 @@
 *go.sum
 go.sum
 media/*
+sticker/*
+unknown/*
 sticker*
