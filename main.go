@@ -98,15 +98,16 @@ func main() {
 	////////////////////////////////////////
 	//// Constants that must not change ////
 	////////////////////////////////////////
+	//fullListOfContacts, err := cli.Store.Contacts.GetAllContacts();
 	fullListOfContacts, err := cli.Store.Contacts.GetAllContacts();
 	if err != nil {
-		fmt.Println("Error getting contacts")
-		return
+		fmt.Println("Error getting contacts main.go 104")
+		return;
 	}
 	fullListOfGroups, err := cli.GetJoinedGroups();
 	if err != nil {
-		fmt.Println("Error getting groups")
-		return
+		fmt.Println("Error getting groups main.go 108")
+		return;
 	}
 	////////////////////////////////////////
 
