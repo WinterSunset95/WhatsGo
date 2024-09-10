@@ -27,10 +27,10 @@ cd WhatsGo
 ```
 go run .
 ```
-
+#### Optionally, you can just run the pre-built binary
 
 #### Pre built binaries
-* Not Available Yet
+* main
 
 ## Note
 This is my FIRST golang project and I am basically bullshitting my way through. <br>
