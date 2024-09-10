@@ -6,11 +6,16 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
+	"context"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
+
+	"google.golang.org/protobuf/proto"
+	waProto "go.mau.fi/whatsmeow/binary/proto"
 )
 
 func viewImage(content string) {
@@ -149,3 +154,28 @@ func pushToDatabase(db Database) {
 	return
 }
 
+func sendTextMessage(cli *whatsmeow.Client, currentChat types.JID, text string, database Database, messageList *tview.List) {
+			messageInfo := types.MessageSource{
+				Chat: currentChat,
+				Sender: *cli.Store.ID,
+				IsFromMe: true,
+			}
+
+			currentTime := time.Now();
+			messageData := MessageData{
+				Info: types.MessageInfo{
+					MessageSource: messageInfo,
+					PushName: cli.Store.PushName,
+					Timestamp: currentTime,
+					Type: "text",
+				},
+				Message: waProto.Message{Conversation: proto.String(text)}}
+			textToSend := &waProto.Message{
+				Conversation: proto.String(text),
+			}
+
+			cli.SendMessage(context.Background(), currentChat, textToSend)
+			database[currentChat] = append(database[currentChat], messageData);
+			pushToDatabase(database)
+			putMessagesToList(cli, database, currentChat, messageList);
+}

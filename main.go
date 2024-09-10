@@ -3,36 +3,24 @@ package main
 import (
 	"context"
 	"strings"
-	"time"
 
 	"encoding/json"
 	"fmt"
 	"os"
 
-	//"strconv"
-	//"strings"
-	//"time"
-
 	"github.com/gdamore/tcell/v2"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal"
-	"google.golang.org/protobuf/proto"
 
-	//"github.com/rivo/tview"
 	"go.mau.fi/whatsmeow"
 
-	//"go.mau.fi/whatsmeow/appstate"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
 	"go.mau.fi/whatsmeow/types"
 
-	//"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types/events"
 
-	//"go.mau.fi/whatsmeow/types"
-	//"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
-	//"google.golang.org/protobuf/proto"
 )
 
 var log waLog.Logger
@@ -131,31 +119,23 @@ func main() {
 		} else if event.Key() == tcell.KeyEnter {
 			// Send a message
 			text := messageInputField.GetText();
-
-			messageInfo := types.MessageSource{
-				Chat: currentChat,
-				Sender: *cli.Store.ID,
-				IsFromMe: true,
-			}
-
-			currentTime := time.Now();
-			messageData := MessageData{
-				Info: types.MessageInfo{
-					MessageSource: messageInfo,
-					PushName: cli.Store.PushName,
-					Timestamp: currentTime,
-					Type: "text",
-				},
-				Message: waProto.Message{Conversation: proto.String(text)}}
-			textToSend := &waProto.Message{
-				Conversation: proto.String(text),
-			}
-
-			cli.SendMessage(context.Background(), currentChat, textToSend)
-			database[currentChat] = append(database[currentChat], messageData);
-			pushToDatabase(database)
-			putMessagesToList(cli, database, currentChat, messageList);
+			sendTextMessage(cli, currentChat, text, database, messageList);
 			messageInputField.SetText("");
+		}
+
+		scrollToBottom(messageList)
+		return event;
+	})
+
+	// This one can double as both the debug page and a multi-line input for sending long messages
+	debugPage.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyCtrlSpace {
+			// Send the message
+			text := debugPage.GetText();
+			sendTextMessage(cli, currentChat, text, database, messageList);
+
+			pages.SendToFront("Home")
+			app.SetFocus(messageInputField)
 		}
 
 		scrollToBottom(messageList)
@@ -211,17 +191,6 @@ func main() {
 	})
 	messageList.SetSelectedFunc(func(index int, userName string, content string, shortcut rune) {
 		viewImage(content)
-	})
-
-	// This one can double as both the debug page and a multi-line input for sending long messages
-	debugPage.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyCtrlSpace {
-			pages.SendToFront("Home")
-			app.SetFocus(messageInputField)
-		
-		}
-
-		return event;
 	})
 
 	////////////////////////////////////////

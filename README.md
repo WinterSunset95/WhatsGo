@@ -31,7 +31,9 @@ cd WhatsGo
 go run .
 ```
 #### Optionally, you can just run the pre-built binary
-* ./WhatsGo
+```
+./WhatsGo
+```
 
 
 ### Usage
