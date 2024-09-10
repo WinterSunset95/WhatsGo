@@ -1,4 +1,4 @@
-module main
+module github.com/WinterSunset95/WhatsGo
 
 go 1.23.1
 

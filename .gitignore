@@ -2,6 +2,6 @@
 *oryxBuildBinary
 *.json
 *go.sum
-*go.mod
+go.sum
 media/*
 sticker*
