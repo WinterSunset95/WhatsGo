@@ -119,14 +119,17 @@ func main() {
 	////////////////////////////////////////
 	///// Lets handle some input here //////
 	////////////////////////////////////////
-	// Here is where we get the message
+	// Here is where we handle inputs on the message input field
 	messageInputField.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyESC {
+			// To the debug page we go
 			pages.SendToFront("Debug")
 			app.SetFocus(debugPage)
 		} else if event.Key() == tcell.KeyTAB {
+			// Cycle through different fields with the tab key
 			app.SetFocus(searchInput);
 		} else if event.Key() == tcell.KeyEnter {
+			// Send a message
 			text := messageInputField.GetText();
 
 			messageInfo := types.MessageSource{
@@ -151,10 +154,9 @@ func main() {
 			cli.SendMessage(context.Background(), currentChat, textToSend)
 			database[currentChat] = append(database[currentChat], messageData);
 			pushToDatabase(database)
-			putMessagesToList(database, currentChat, messageList);
+			putMessagesToList(cli, database, currentChat, messageList);
 			messageInputField.SetText("");
 		}
-
 
 		scrollToBottom(messageList)
 		return event;
@@ -184,7 +186,7 @@ func main() {
 	contactsList.SetSelectedFunc(func(index int, userName string, userJid string, shortcut rune) {
 		converted, _ := types.ParseJID(userJid);
 		currentChat = converted;
-		putMessagesToList(database, currentChat, messageList);
+		putMessagesToList(cli, database, currentChat, messageList);
 
 		searchInput.SetText("");
 		contacts = listOfContacts("", fullListOfContacts, fullListOfGroups);
@@ -196,19 +198,19 @@ func main() {
 		scrollToBottom(messageList)
 	})
 
-
 	// Next is the message list.
 	messageList.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyTAB {
 			app.SetFocus(messageInputField)
 		}
 
+		return event
 		// We want to scroll to the bottom always
-		endKeyEvent := tcell.NewEventKey(tcell.KeyEnd, 0, tcell.ModNone)
-		return endKeyEvent;
+		//endKeyEvent := tcell.NewEventKey(tcell.KeyEnd, 0, tcell.ModNone)
+		//return endKeyEvent;
 	})
 	messageList.SetSelectedFunc(func(index int, userName string, content string, shortcut rune) {
-		viewImage(content, debugPage)
+		viewImage(content)
 	})
 
 	// This one can double as both the debug page and a multi-line input for sending long messages
@@ -221,8 +223,6 @@ func main() {
 
 		return event;
 	})
-
-
 
 	////////////////////////////////////////
 	///// We need to handle the events /////
@@ -253,7 +253,7 @@ func main() {
 				database[chatId] = append(database[chatId], messageData);
 				pushToDatabase(database)
 				if chatId == currentChat {
-					putMessagesToList(database, currentChat, messageList);
+					putMessagesToList(cli, database, currentChat, messageList);
 				}
 
 				break

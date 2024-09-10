@@ -36,7 +36,7 @@ func drawApp() (*tview.Application, *tview.List, *tview.List, *tview.InputField,
 
 	// This is the list of messages
 	messageList := tview.NewList().ShowSecondaryText(true);
-	messageList.SetSelectedBackgroundColor(tcell.ColorBlack).SetSelectedTextColor(tcell.ColorWhite);
+	messageList.SetSelectedBackgroundColor(tcell.ColorWhite).SetSelectedTextColor(tcell.ColorBlack);
 	// Upto here
 
 	// Add the items to the flex
