@@ -67,14 +67,14 @@ func putMessagesToList(database Database, jid types.JID, list *tview.List) {
 			list.AddItem(mainText, *messageData.Message.ExtendedTextMessage.Text, 0, nil);
 		} else if messageData.Info.Type == "media" {
 			// Fetch the image, GET request
-			var url string;
+			//var url string;
 			if messageData.Info.MediaType == "image" {
-				url = *messageData.Message.ImageMessage.Url;
-				url = strings.ReplaceAll(url, "\u0026", "&");
-				list.AddItem(mainText, "Image: " + url, 0, nil);
+				//url = *messageData.Message.ImageMessage.Url;
+				//url = strings.ReplaceAll(url, "\u0026", "&");
+				//list.AddItem(mainText, "Image: " + url, 0, nil);
 			} else if messageData.Info.MediaType == "sticker" {
-				url = *messageData.Message.StickerMessage.Url + *messageData.Message.StickerMessage.DirectPath;
-				list.AddItem(mainText, "Sticker: " + url, 0, nil);
+				//url = *messageData.Message.StickerMessage.Url + *messageData.Message.StickerMessage.DirectPath;
+				//list.AddItem(mainText, "Sticker: " + url, 0, nil);
 			}
 
 			//response, err := http.Get(url)

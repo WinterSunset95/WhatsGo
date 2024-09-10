@@ -1,6 +1,6 @@
 *wapp.db
 *oryxBuildBinary
 *.json
-go.sum
-go.mod
+*go.sum
+*go.mod
 sticker*
