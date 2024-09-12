@@ -3,11 +3,12 @@ module github.com/WinterSunset95/WhatsGo
 go 1.23.1
 
 require (
+	github.com/gdamore/tcell v1.4.0
 	github.com/gdamore/tcell/v2 v2.7.4
 	github.com/mattn/go-sqlite3 v1.14.23
 	github.com/mdp/qrterminal v1.0.1
 	github.com/rivo/tview v0.0.0-20240818110301-fd649dbf1223
-	go.mau.fi/whatsmeow v0.0.0-20240905213328-d910a51f53d8
+	go.mau.fi/whatsmeow v0.0.0-20240910222809-85e67c58e8d6
 	google.golang.org/protobuf v1.34.2
 )
 
