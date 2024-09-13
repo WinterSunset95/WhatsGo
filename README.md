@@ -3,13 +3,22 @@
 * A command line whatsapp client
 ![whatsgo](./whatsgo.png)
 
-### Current goals
-* View image messages (done)
-* View video messages (done)
-* View sticker messages (done)
-* Search for contacts (done)
-* Recieve read, sent and delivered status (done)
-* Send message in a group (done)
+### Core Features
+* View image messages 
+* View video messages 
+* View sticker messages 
+* Search for contacts 
+* Recieve read, sent and delivered status 
+* Send message in a group 
+* Send photos
+
+## Planned Features
+* View profile pictures
+* View documents
+* Send videos
+* Send stickers
+* Send documents
+* View status updates
 
 ### Requirements
 * Go 1.16

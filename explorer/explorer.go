@@ -12,7 +12,7 @@ import (
 	"github.com/rivo/tview"
 )
 
-func setupExplorerLists(parentDir *tview.List, currentDir *tview.List) {
+func setupExplorerLists() {
 	/////////////////////////////////////////////////////////////////////////
 	//// Lets start the main explorer:									 ////
 	//// 1. Get a list of files and directories in the parent directory  ////
@@ -26,7 +26,7 @@ func setupExplorerLists(parentDir *tview.List, currentDir *tview.List) {
 		return
 	}
 	for _, file := range parentDirectoryList {
-		parentDir.AddItem(file.Name(), "", 0, nil)
+		ExParentDir.AddItem(file.Name(), "", 0, nil)
 	}
 	// We need to put the selection on the current directory
 	fullDirPath, _ := os.Getwd()
@@ -34,8 +34,8 @@ func setupExplorerLists(parentDir *tview.List, currentDir *tview.List) {
 	_ = fullDirPathSplit
 	debug.WhatsGoPrint(fullDirPathSplit[0])
 	//currentDirName := fullDirPathSplit[len(fullDirPathSplit)]
-	//directoryIndex := parentDir.FindItems(currentDirName, "", false, true)
-	//parentDir.SetCurrentItem(directoryIndex[0])
+	//directoryIndex := ExParentDir.FindItems(currentDirName, "", false, true)
+	//ExParentDir.SetCurrentItem(directoryIndex[0])
 
 	// Current Directory
 	currentDirectoryList, err := os.ReadDir("./")
@@ -43,17 +43,17 @@ func setupExplorerLists(parentDir *tview.List, currentDir *tview.List) {
 		return
 	}
 	for _, file := range currentDirectoryList {
-		currentDir.AddItem(file.Name(), "", 0, nil)
+		ExCurrentDir.AddItem(file.Name(), "", 0, nil)
 	}
 }
 
-func loadAndSetImage(fileName string, textView *tview.TextView, imageView *tview.Image, previewPane *tview.Flex) {
+func loadAndSetImage(fileName string) {
 		// If the file is an image
 		// Load the image as bytes
 		imageBytes, err := os.ReadFile(fileName)
 		if err != nil {
-			textView.SetText("Error reading image file")
-			previewPane.AddItem(textView, 0, 1, false)
+			ExTextView.SetText("Error reading image file")
+			ExPreviewPane.AddItem(ExTextView, 0, 1, false)
 			return
 		}
 		// Decode the image
@@ -61,61 +61,59 @@ func loadAndSetImage(fileName string, textView *tview.TextView, imageView *tview
 		if err != nil {
 			graphics, err = png.Decode(bytes.NewReader(imageBytes))
 			if err != nil {
-				textView.SetText("Error decoding image")
-				previewPane.AddItem(textView, 0, 1, false)
+				ExTextView.SetText("Error decoding image")
+				ExPreviewPane.AddItem(ExTextView, 0, 1, false)
 				return
 			}
 		}
-		imageView.SetImage(graphics)
-		previewPane.AddItem(imageView, 0, 1, false)
+		ExImageView.SetImage(graphics)
+		ExPreviewPane.AddItem(ExImageView, 0, 1, false)
+		ExApp.Draw()
 }
 
-func setupPreviewPane(currentDir *tview.List, previewPane *tview.Flex, textView *tview.TextView, imageView *tview.Image, listView *tview.List) {
+func setupPreviewPane() {
 	// Clear the preview pane
-	previewPane.Clear()
+	ExPreviewPane.Clear()
 
-	itemIndex := currentDir.GetCurrentItem()
-	fileName, _ := currentDir.GetItemText(itemIndex)
+	itemIndex := ExCurrentDir.GetCurrentItem()
+	fileName, _ := ExCurrentDir.GetItemText(itemIndex)
 
 	// Get file info
 	fileInfo, err := os.Stat(fileName)
 	if err != nil {
-		textView.SetText("Error getting file type: " + fileName + " " + err.Error());
-		previewPane.AddItem(textView, 0, 1, false)
+		ExTextView.SetText("Error getting file type: " + fileName + " " + err.Error());
+		ExPreviewPane.AddItem(ExTextView, 0, 1, false)
 		return
 	}
 
 	if fileInfo.IsDir() {
 		// If the file is a directory, show the contents of the directory
-		listView.Clear()
+		ExListView.Clear()
 		directoryContents, err := os.ReadDir(fileName)
 		if err != nil {
 			return
 		}
 		for _, file := range directoryContents {
-			listView.AddItem(file.Name(), "", 0, nil)
+			ExListView.AddItem(file.Name(), "", 0, nil)
 		}
-		previewPane.AddItem(listView, 0, 1, false)
+		ExPreviewPane.AddItem(ExListView, 0, 1, false)
 		return
 	}
 
 	if strings.HasSuffix(fileName, ".png") || strings.HasSuffix(fileName, ".jpg") || strings.HasSuffix(fileName, ".jpeg") {
-		go loadAndSetImage(fileName, textView, imageView, previewPane)
+		go loadAndSetImage(fileName)
 	} else {
 		// If the file is not an image, show the contents of the file
 		file, err := os.ReadFile(fileName)
 		if err != nil {
 			return
 		}
-		textView.SetText(string(file))
-		previewPane.AddItem(textView, 0, 1, false)
+		ExTextView.SetText(string(file))
+		ExPreviewPane.AddItem(ExTextView, 0, 1, false)
 	}
 }
 
 func ExplorerApp(parentApp *tview.Application) (string) {
-	// Import the views from explorer.go
-	app, body, parentDir, currentDir, previewPane, textView, imageView, listView := drawExplorer()
-
 	//////////////////////////////////////////////////
 	//// Current directory. Should not be changed ////
 	//////////////////////////////////////////////////
@@ -132,75 +130,63 @@ func ExplorerApp(parentApp *tview.Application) (string) {
 	/////////////////////////////////////////
 	//// Set the root of the application ////
 	/////////////////////////////////////////
-	setupExplorerLists(parentDir, currentDir)
+	setupExplorerLists()
 
 	///////////////////////////////////////////
 	//// Handle input events on everything ////
 	///////////////////////////////////////////
-	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	ExApp.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEsc {
-			app.Stop()
+			ExApp.Stop()
 		}
 		return event
 	})
-	body.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	ExBody.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		return event
 	})
-	parentDir.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	ExParentDir.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		return event
 	})
-	currentDir.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+	ExCurrentDir.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		// Change to the parent directory
 		if event.Key() == tcell.KeyLeft {
 			os.Chdir("../")
-			parentDir.Clear()
-			currentDir.Clear()
-			setupExplorerLists(parentDir, currentDir)
+			ExParentDir.Clear()
+			ExCurrentDir.Clear()
+			setupExplorerLists()
 			return event
 		}
 		// Change to the child directory, if it is a directory. If not, do nothing
 		if event.Key() == tcell.KeyRight {
-			selectedItem := currentDir.GetCurrentItem()
-			selectedItemText, _ := currentDir.GetItemText(selectedItem)
+			selectedItem := ExCurrentDir.GetCurrentItem()
+			selectedItemText, _ := ExCurrentDir.GetItemText(selectedItem)
 			fileInfo, err := os.Stat(selectedItemText)
 			if err != nil {
 				return event
 			}
 			if fileInfo.IsDir() {
 				os.Chdir(selectedItemText)
-				parentDir.Clear()
-				currentDir.Clear()
-				setupExplorerLists(parentDir, currentDir)
+				ExParentDir.Clear()
+				ExCurrentDir.Clear()
+				setupExplorerLists()
 			}
 		}
 		return event
 	})
-	currentDir.SetChangedFunc(func(i int, s1, s2 string, r rune) {
-		setupPreviewPane(currentDir, previewPane, textView, imageView, listView)
+	ExCurrentDir.SetChangedFunc(func(i int, s1, s2 string, r rune) {
+		setupPreviewPane()
 	})
-	currentDir.SetSelectedFunc(func(i int, s1, s2 string, r rune) {
+	ExCurrentDir.SetSelectedFunc(func(i int, s1, s2 string, r rune) {
 		currentWorkingDirectory, _ := os.Getwd()
 		filePath = currentWorkingDirectory + "/" + s1
-		app.Stop()
-	})
-	previewPane.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		return event
-	})
-	textView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		return event
-	})
-	imageView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		return event
-	})
-	listView.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		return event
+		ExApp.Stop()
 	})
 
 	parentApp.Suspend(func() {
-		app.Run()
+		ExApp.Run()
 	})
 
 	os.Chdir(baseDirectory)
-	return filePath
 
+	return filePath
 }

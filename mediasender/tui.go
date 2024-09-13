@@ -2,31 +2,36 @@ package mediasender
 
 import "github.com/rivo/tview"
 
-func mediaSenderUi() (*tview.Application, *tview.Flex, *tview.InputField, *tview.Flex, *tview.TextView, *tview.Image, *tview.TextView) {
-	app := tview.NewApplication()
+var MsApp *tview.Application
+var MsBody *tview.Flex
+var MsMediaTitleInput *tview.InputField
+var MsPreviewPane *tview.Flex
+var MsDocumentPreview *tview.TextView
+var MsImagePreview *tview.Image
+var MsVideoPreview *tview.TextView
 
-	body := tview.NewFlex().SetDirection(tview.FlexRow)
+func MsInitialize() {
+	MsApp = tview.NewApplication()
 
-	previewPane := tview.NewFlex().SetDirection(tview.FlexRow)
-	previewPane.SetBorder(true).SetTitle("Preview Pane")
+	MsBody = tview.NewFlex().SetDirection(tview.FlexRow)
 
-	mediaTitleInput := tview.NewInputField()
-	mediaTitleInput.SetBorder(true).SetTitle("Caption")
+	MsPreviewPane = tview.NewFlex().SetDirection(tview.FlexRow)
+	MsPreviewPane.SetBorder(true).SetTitle("Preview Pane")
 
-	documentPreview := tview.NewTextView()
-	documentPreview.SetBorder(true).SetTitle("Document Preview")
+	MsMediaTitleInput = tview.NewInputField()
+	MsMediaTitleInput.SetBorder(true).SetTitle("Caption")
 
-	imagePreview := tview.NewImage()
-	imagePreview.SetBorder(true).SetTitle("Image Preview")
+	MsDocumentPreview = tview.NewTextView()
+	MsDocumentPreview.SetBorder(true).SetTitle("Document Preview")
 
-	videoPreview := tview.NewTextView()
-	videoPreview.SetBorder(true).SetTitle("Video Preview")
+	MsImagePreview = tview.NewImage()
+	MsImagePreview.SetBorder(true).SetTitle("Image Preview")
 
-	body.AddItem(previewPane, 0, 10, false)
-	body.AddItem(mediaTitleInput, 0, 1, false)
+	MsVideoPreview = tview.NewTextView()
+	MsVideoPreview.SetBorder(true).SetTitle("Video Preview")
 
-	app.SetRoot(body, true).SetFocus(mediaTitleInput)
+	MsBody.AddItem(MsPreviewPane, 0, 10, false)
+	MsBody.AddItem(MsMediaTitleInput, 0, 1, false)
 
-	return app, body, mediaTitleInput, previewPane, documentPreview, imagePreview, videoPreview
-
+	MsApp.SetRoot(MsBody, true).SetFocus(MsMediaTitleInput)
 }

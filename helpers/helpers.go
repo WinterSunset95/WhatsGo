@@ -32,9 +32,6 @@ var WhatsGoStickerDir string
 var WhatsGoUnknownDir string
 var WhatsGoLogsDir string
 
-var CurrentChat types.JID
-var WhatsGoDatabase whatsgotypes.Database
-
 func SetupHelpers() {
 	UserHomeDir, _ = os.UserHomeDir();
 	WhatsGoDir = UserHomeDir + "/.whatsgo";
@@ -50,8 +47,8 @@ func SetupHelpers() {
 	_ = os.MkdirAll(WhatsGoUnknownDir, 0755);
 	_ = os.MkdirAll(WhatsGoLogsDir, 0755);
 
-	CurrentChat = types.JID{};
-	WhatsGoDatabase = make(whatsgotypes.Database);
+	waconnect.CurrentChat = types.JID{};
+	waconnect.WhatsGoDatabase = make(whatsgotypes.Database);
 }
 
 
@@ -113,7 +110,6 @@ func PutMessagesToList(cli *whatsmeow.Client, database whatsgotypes.Database, ji
 				fullPath = WhatsGoMediaDir + fileName
 			} else if messageData.Message.StickerMessage != nil {
 				stickerUrl := *messageData.Message.StickerMessage.URL;
-				debug.WhatsGoPrint(stickerUrl + "\n")
 				stickerIdWithExtension := strings.Split(stickerUrl, "/")[5];
 				stickerId := strings.Split(stickerIdWithExtension, ".")[0]
 				fileName = "sticker-" + stickerId + ".webp";
@@ -169,7 +165,6 @@ func BackgroundDownloader(cli *whatsmeow.Client, list *tview.List, fullPath stri
 		// save the bytearray to a file
 		os.WriteFile(fullPath, videoByte, 0644)
 	}
-
 }
 
 func ScrollToBottom(list *tview.List) {
@@ -214,10 +209,11 @@ func SendTextMessage(cli *whatsmeow.Client, currentChat types.JID, text string, 
 			PutMessagesToList(cli, database, currentChat, messageList);
 }
 
-func SendMediaMessage(filePathWithType string, uploadResponse whatsmeow.UploadResponse, mediaTitleInput *tview.InputField, messageList *tview.List) {
+func SendMediaMessage(app *tview.Application, filePathWithType string, fileBytes *[]byte, uploadResponse *whatsmeow.UploadResponse, mediaTitleInput *tview.InputField, messageList *tview.List) {
 		client := waconnect.WAClient
-		currentChat := CurrentChat
+		currentChat := waconnect.CurrentChat
 		var messageToSend *waE2E.Message
+		var mediaType string = ""
 		// Here we send
 		if strings.HasPrefix(filePathWithType, "Document:") {
 			documentMessage := &waE2E.DocumentMessage{
@@ -248,25 +244,20 @@ func SendMediaMessage(filePathWithType string, uploadResponse whatsmeow.UploadRe
 				VideoMessage: videoMessage,
 			}
 		} else if strings.HasPrefix(filePathWithType, "Photo:") {
+			mediaType = "image"
 			imageMessage := &waE2E.ImageMessage{
-				URL: &uploadResponse.URL,
-				Mimetype: proto.String("image/jpeg"),
 				Caption: proto.String(mediaTitleInput.GetText()),
-				FileSHA256: uploadResponse.FileEncSHA256,
-				FileLength: &uploadResponse.FileLength,
-				MediaKey: uploadResponse.MediaKey,
-				DirectPath: &uploadResponse.DirectPath,
-				FileEncSHA256: uploadResponse.FileEncSHA256,
+				Mimetype: proto.String("image/jpeg"),
 
-				ThumbnailDirectPath: &uploadResponse.DirectPath,
-				ThumbnailSHA256: uploadResponse.FileEncSHA256,
-				ThumbnailEncSHA256: uploadResponse.FileEncSHA256,
+				URL: &uploadResponse.URL,
+				DirectPath: &uploadResponse.DirectPath,
+				MediaKey: uploadResponse.MediaKey,
+				FileEncSHA256: uploadResponse.FileEncSHA256,
+				FileSHA256: uploadResponse.FileSHA256,
+				FileLength: &uploadResponse.FileLength,
 			}
 			messageToSend = &waE2E.Message{
 				ImageMessage: imageMessage,
-				MessageContextInfo: &waE2E.MessageContextInfo{
-					MessageSecret: uploadResponse.MediaKey,
-				},
 			}
 		} else {
 			// Do nothing
@@ -285,15 +276,16 @@ func SendMediaMessage(filePathWithType string, uploadResponse whatsmeow.UploadRe
 				PushName: client.Store.PushName,
 				Timestamp: currentTime,
 				Type: "media",
+				MediaType: mediaType,
 			},
 			Message: *messageToSend,
 		}
 		resp, _ := client.SendMessage(context.Background(), currentChat, messageToSend)
 		respJson, _ := json.MarshalIndent(resp, "", "    ")
-		debug.WhatsGoPrint(string(respJson))
-		messageJson, _ := json.MarshalIndent(messageData, "", "    ")
-		debug.WhatsGoPrint(string(messageJson))
-		WhatsGoDatabase[currentChat] = append(WhatsGoDatabase[currentChat], messageData);
-		PushToDatabase(WhatsGoDatabase)
-		PutMessagesToList(client, WhatsGoDatabase, currentChat, messageList);
+		debug.WhatsGoPrint("\nSent message Response: " + string(respJson))
+		//messageJson, _ := json.MarshalIndent(messageData, "", "    ")
+		waconnect.WhatsGoDatabase[currentChat] = append(waconnect.WhatsGoDatabase[currentChat], messageData);
+		PushToDatabase(waconnect.WhatsGoDatabase)
+		PutMessagesToList(client, waconnect.WhatsGoDatabase, currentChat, messageList);
+		app.Stop()
 }

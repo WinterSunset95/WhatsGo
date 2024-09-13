@@ -14,7 +14,7 @@ func WhatsGoPrint(text string) {
 	if err != nil {
 		panic(err)
 	}
-	if _, err := file.WriteString(text); err != nil {
+	if _, err := file.WriteString("\n" + text); err != nil {
 		panic (err)
 	}
 }

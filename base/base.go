@@ -22,15 +22,11 @@ func WhatsGoBase() {
 	////////////////////////////////////////////////////
 	//// The main folder for whatsgo is ~/.whatsgo/ ////
 	////////////////////////////////////////////////////
-
-	currentChat := helpers.CurrentChat;
-	database := helpers.WhatsGoDatabase;
-
 	oldDatabase, err := os.ReadFile(helpers.WhatsGoDbJson)
 	if err == nil {
-		err = json.Unmarshal(oldDatabase, &database);
+		err = json.Unmarshal(oldDatabase, &waconnect.WhatsGoDatabase);
 	} else {
-		fmt.Println("No database found");
+		fmt.Println("No waconnect.WhatsGoDatabase found");
 	}
 
 	///////////////////////////////////////
@@ -108,17 +104,17 @@ func WhatsGoBase() {
 					filePath := explorer.ExplorerApp(ui.UIApp)
 					ui.UIDebugPage.SetText(filePath, true)
 					ui.UIPages.SendToFront("Home")
-					mediasender.MediaSender(ui.UIApp, currentChat, "Document:" + filePath, database, messageList)
+					mediasender.MediaSender(ui.UIApp, waconnect.CurrentChat, "Document:" + filePath, waconnect.WhatsGoDatabase, messageList)
 				} else if buttonLabel == "Photo" {
 					filePath := explorer.ExplorerApp(ui.UIApp)
 					ui.UIDebugPage.SetText(filePath, true)
 					ui.UIPages.SendToFront("Home")
-					mediasender.MediaSender(ui.UIApp, currentChat, "Photo:" + filePath, database, messageList)
+					mediasender.MediaSender(ui.UIApp, waconnect.CurrentChat, "Photo:" + filePath, waconnect.WhatsGoDatabase, messageList)
 				} else if buttonLabel == "Video" {
 					filePath := explorer.ExplorerApp(ui.UIApp)
 					ui.UIDebugPage.SetText(filePath, true)
 					ui.UIPages.SendToFront("Home")
-					mediasender.MediaSender(ui.UIApp, currentChat, "Video:" + filePath, database, messageList)
+					mediasender.MediaSender(ui.UIApp, waconnect.CurrentChat, "Video:" + filePath, waconnect.WhatsGoDatabase, messageList)
 				} else if buttonLabel == "Exit" {
 					ui.UIApp.Stop()
 				} else {
@@ -154,7 +150,7 @@ func WhatsGoBase() {
 		// The user pressed enter
 		// Send a text message
 		text := messageInputField.GetText();
-		helpers.SendTextMessage(cli, currentChat, text, database, messageList);
+		helpers.SendTextMessage(cli, waconnect.CurrentChat, text, waconnect.WhatsGoDatabase, messageList);
 		messageInputField.SetText("");
 		return event
 	})
@@ -164,7 +160,7 @@ func WhatsGoBase() {
 		if event.Key() == tcell.KeyCtrlSpace {
 			// Send the message
 			text := debugPage.GetText();
-			helpers.SendTextMessage(cli, currentChat, text, database, messageList);
+			helpers.SendTextMessage(cli, waconnect.CurrentChat, text, waconnect.WhatsGoDatabase, messageList);
 
 			pages.SendToFront("Home")
 			app.SetFocus(messageInputField)
@@ -182,7 +178,8 @@ func WhatsGoBase() {
 	// The search input. Pretty straightforward
 	searchInput.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEnter {
-			app.SetFocus(contactsList)
+			sectionsArrayIndex = 1;
+			app.SetFocus(sectionsArray[sectionsArrayIndex])
 			return event
 		}
 
@@ -196,13 +193,15 @@ func WhatsGoBase() {
 	// The contacts list. Also straightforward
 	contactsList.SetSelectedFunc(func(index int, userName string, userJid string, shortcut rune) {
 		converted, _ := types.ParseJID(userJid);
-		currentChat = converted;
-		helpers.PutMessagesToList(cli, database, currentChat, messageList);
+		waconnect.CurrentChat = converted;
+		helpers.PutMessagesToList(cli, waconnect.WhatsGoDatabase, waconnect.CurrentChat, messageList);
 		searchInput.SetText("");
 		contacts = listOfContacts("", fullListOfContacts, fullListOfGroups);
 		helpers.PutContactsOnList(contacts, contactsList);
 		messageList.SetTitle(" " + userName + " ");
 		helpers.ScrollToBottom(messageList)
+		sectionsArrayIndex = 3;
+		app.SetFocus(sectionsArray[sectionsArrayIndex])
 	})
 
 	// Next is the message list.
@@ -234,15 +233,15 @@ func WhatsGoBase() {
 				notificationsBox.SetText(userName + " Sent a message");
 
 				// Prepare the message data
-				// We need to add the message to the database
+				// We need to add the message to the waconnect.WhatsGoDatabase
 				info := evt.Info;
 				message := evt.Message;
 				messageData := whatsgotypes.MessageData{Info: info, Message: *message};
 				chatId := evt.Info.Chat;
-				database[chatId] = append(database[chatId], messageData);
-				helpers.PushToDatabase(database)
-				if chatId == currentChat {
-					helpers.PutMessagesToList(cli, database, currentChat, messageList);
+				waconnect.WhatsGoDatabase[chatId] = append(waconnect.WhatsGoDatabase[chatId], messageData);
+				helpers.PushToDatabase(waconnect.WhatsGoDatabase)
+				if chatId == waconnect.CurrentChat {
+					helpers.PutMessagesToList(cli, waconnect.WhatsGoDatabase, waconnect.CurrentChat, messageList);
 				}
 
 				break
@@ -269,7 +268,7 @@ func WhatsGoBase() {
 					evtType = "Read";
 					notificationsBox.SetText("Read by " + userName);
 				}
-				if userJid == currentChat {
+				if userJid == waconnect.CurrentChat {
 					messageList.SetTitle(userName + "(" + evtType + ")");
 				}
 				break;

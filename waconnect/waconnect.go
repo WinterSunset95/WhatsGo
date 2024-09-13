@@ -7,16 +7,21 @@ import (
 
 	/////////////////////////////////
 	//// Do NOT remove this line ////
+	whatsgotypes "github.com/WinterSunset95/WhatsGo/WhatsGoTypes"
 	_ "github.com/mattn/go-sqlite3"
 	/////////////////////////////////
-	
+
 	"github.com/mdp/qrterminal"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
 var WAClient *whatsmeow.Client
+var CurrentChat types.JID
+var WhatsGoDatabase whatsgotypes.Database
+
 
 func WAConnect(whatsGoDb string) (*whatsmeow.Client, error) {
 	dbLog := waLog.Stdout("Database", "DEBUG", true);

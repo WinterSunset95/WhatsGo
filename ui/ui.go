@@ -87,5 +87,4 @@ func UIInitialize() {
 
 	// Set the focus to the message input field
 	UIApp.SetRoot(UIPages, true).SetFocus(UISearchInput);
-
 }
