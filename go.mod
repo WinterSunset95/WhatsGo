@@ -3,6 +3,7 @@ module github.com/WinterSunset95/WhatsGo
 go 1.23.1
 
 require (
+	github.com/gabriel-vasile/mimetype v1.4.5
 	github.com/gdamore/tcell v1.4.0
 	github.com/gdamore/tcell/v2 v2.7.4
 	github.com/mattn/go-sqlite3 v1.14.23
