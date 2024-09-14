@@ -55,11 +55,8 @@ func WhatsGoBase() {
 	////////////////////////////////////////
 
 	contacts := listOfContacts("", fullListOfContacts, fullListOfGroups);
-	///////////////////////////
-	//// Initialize the UI ////
-	///////////////////////////
-	ui.UIInitialize()
-	// After this, the UI elements should be available for use
+
+	// Get the ui elements
 	app := ui.UIApp
 	body := ui.UIBody
 	contactsList := ui.UIContactsList
@@ -92,12 +89,12 @@ func WhatsGoBase() {
 		if event.Key() == tcell.KeyESC {
 			modalSelector.SetText("Where would you like to go? ")
 			modalSelector.ClearButtons()
-			modalSelector.AddButtons([]string{"Home", "Help", "Multi Line Message", "Document", "Photo", "Video", "Exit"})
+			modalSelector.AddButtons([]string{"Home", "Help", "Multi Line Message", "Document", "Photo", "Video", "Exit", "Logout"})
 			modalSelector.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
 				if buttonLabel == "Home" {
 					ui.UIPages.SendToFront("Home")
 				} else if buttonLabel == "Help" {
-					// Do nothing
+					ui.UIPages.SendToFront("Help")
 				} else if buttonLabel == "Multi Line Message" {
 					ui.UIPages.SendToFront("Debug")
 				} else if buttonLabel == "Document" {
@@ -117,6 +114,14 @@ func WhatsGoBase() {
 					mediasender.MediaSender(ui.UIApp, waconnect.CurrentChat, "Video:" + filePath, waconnect.WhatsGoDatabase, messageList)
 				} else if buttonLabel == "Exit" {
 					ui.UIApp.Stop()
+				} else if buttonLabel == "Logout" {
+					cli.Logout()
+					modalSelector.SetText("Logged out")
+					modalSelector.ClearButtons()
+					modalSelector.AddButtons([]string{"Exit"})
+					modalSelector.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+						ui.UIApp.Stop()
+					})
 				} else {
 					ui.UIPages.SendToFront("Modal")
 				}
@@ -136,6 +141,14 @@ func WhatsGoBase() {
 			return event
 		}
 
+		return event
+	})
+
+	ui.UIHelpBox.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		if event.Key() == tcell.KeyESC {
+			pages.SendToFront("Home")
+			app.SetFocus(sectionsArray[sectionsArrayIndex])
+		}
 		return event
 	})
 

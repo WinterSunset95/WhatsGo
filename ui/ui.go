@@ -15,6 +15,7 @@ var UIDebugPage *tview.TextArea
 var UIPages *tview.Pages
 var UINotificationsBox *tview.TextView
 var UIHelpBox *tview.TextView
+var UIHelpPage *tview.TextView
 var UIModalSelector *tview.Modal
 
 func UIInitialize() {
@@ -69,6 +70,46 @@ func UIInitialize() {
 	/////////////////////////////
 	UIPages = tview.NewPages();
 
+	///////////////////
+	//// Help page ////
+	///////////////////
+	UIHelpPage = tview.NewTextView()
+	helpText := `
+	Thank you for using WhatsGo.
+
+	# Pages:
+	- Home: The main page
+	- Debug: The debug page
+	- Modal: The modal page
+	- Explorer: Browse the filesystem to send files
+	- MediaSender: Preview the media before sending, add a caption.
+
+	# Keybinds:
+	- Tab: Cycle through windows
+	- Esc: Open menu, Close menu
+	- Enter:
+		- On 'Search': Will take you to the contacts list
+		- On 'Contacts': Will select the contact, and take you to the 'Message' input
+		- On 'Chat': Will open the image, video or sticker if it is on a media message
+		- On 'Explorer': Will open the file in the 'MediaSender' page.
+		- On 'MediaSender': Will send the media with the caption
+
+	# Features:
+	- Send media: Send images, videos, documents
+	- Send messages: Send text messages
+	- Download media: Download images, videos
+	- Search: Search for contacts
+
+	# Features to be added:
+	- Download documents
+	- Send stickers
+
+	# Notes:
+	- I don't know half of what I am doing
+	- Bugs will be everywhere
+	`
+	UIHelpPage.SetText(helpText);
+
 	// The debug page
 	UIDebugPage = tview.NewTextArea().SetPlaceholder("Debug page");
 
@@ -83,6 +124,7 @@ func UIInitialize() {
 	UIPages.AddPage("Home", UIBody, true, true);
 	UIPages.AddPage("Debug", UIDebugPage, true, true);
 	UIPages.AddPage("Modal", UIModalSelector, true, true);
+	UIPages.AddPage("Help", UIHelpPage, true, true);
 	UIPages.SendToFront("Home")
 
 	// Set the focus to the message input field

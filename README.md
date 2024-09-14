@@ -7,17 +7,17 @@
 * View image messages 
 * View video messages 
 * View sticker messages 
+* View documents
 * Search for contacts 
 * Recieve read, sent and delivered status 
 * Send message in a group 
 * Send photos
+* Send videos
+* Send documents
 
 ## Planned Features
 * View profile pictures
-* View documents
-* Send videos
 * Send stickers
-* Send documents
 * View status updates
 
 ### Requirements
