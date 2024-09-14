@@ -1,8 +1,6 @@
 *wapp.db
 *oryxBuildBinary
 *.json
-*go.sum
-go.sum
 media/*
 sticker/*
 unknown/*
