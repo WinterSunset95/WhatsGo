@@ -83,16 +83,21 @@ func PutContactsOnList(contacts map[types.JID]types.ContactInfo, list *tview.Lis
 }
 
 func getFullPathOfMedia(url string, mimeType string, isLocal bool) (string, string, string) {
-	fileIdWithExtension := strings.Split(url, "/")[5];
-	var fileId string
-	if isLocal {
-		fileId = "whatsgo"
+	urlSplitArr := strings.Split(url, "/");
+	if len(urlSplitArr) >= 5 {
+		fileIdWithExtension := strings.Split(url, "/")[5];
+		var fileId string
+		if isLocal {
+			fileId = "whatsgo"
+		} else {
+			fileId = strings.Split(fileIdWithExtension, ".")[0]
+		}
+		prefix := strings.Split(mimeType, "/")[0];
+		suffix := strings.Split(mimeType, "/")[1];
+		return prefix, fileId, suffix
 	} else {
-		fileId = strings.Split(fileIdWithExtension, ".")[0]
+		return url, "fileId", "suffix"
 	}
-	prefix := strings.Split(mimeType, "/")[0];
-	suffix := strings.Split(mimeType, "/")[1];
-	return prefix, fileId, suffix
 }
 
 func PutMessagesToList(cli *whatsmeow.Client, database whatsgotypes.Database, jid types.JID, list *tview.List) {
