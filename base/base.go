@@ -1,6 +1,7 @@
 package base
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -44,7 +45,7 @@ func WhatsGoBase() {
 	//// Constants that must not change ////
 	////////////////////////////////////////
 	//var fullListOfContacts map[types.JID]types.ContactInfo
-	fullListOfContacts, err := cli.Store.Contacts.GetAllContacts();
+	fullListOfContacts, err := cli.Store.Contacts.GetAllContacts(context.Background());
 	if err != nil {
 		fmt.Println("Error getting contacts main.go")
 	}
@@ -115,7 +116,7 @@ func WhatsGoBase() {
 				} else if buttonLabel == "Exit" {
 					ui.UIApp.Stop()
 				} else if buttonLabel == "Logout" {
-					cli.Logout()
+					cli.Logout(context.Background())
 					modalSelector.SetText("Logged out")
 					modalSelector.ClearButtons()
 					modalSelector.AddButtons([]string{"Exit"})
